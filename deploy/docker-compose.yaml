@@ -1,0 +1,13 @@
+services:
+  sepoliar:
+    image: sepoliar:1.0.0
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL}
+      TZ: ${TZ}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      ENABLED_TOKENS: ${ENABLED_TOKENS}
+      WALLET_ADDRESS_ETH: ${WALLET_ADDRESS_ETH}
+    volumes:
+      - ../data:/app/data:ro
+    restart: unless-stopped
