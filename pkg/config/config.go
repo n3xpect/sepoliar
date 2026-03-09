@@ -21,7 +21,7 @@ func Load() *Config {
 
 	return &Config{
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
-		EnabledTokens: getEnv("ENABLED_TOKENS", "ETH"),
+		EnabledTokens: getEnvRequired("ENABLED_TOKENS"),
 		Telegram:      loadTelegramConfig(),
 		Wallets:       loadWallets(),
 		RPC:           loadRPCConfig(),
