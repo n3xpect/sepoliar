@@ -1,11 +1,11 @@
 # sepoliar
 
-Sepolia testnet faucet'inden otomatik token talep aracı. Kaydedilmiş bir Google oturumu kullanarak her 24 saatte bir ETH talep eder; bakiyeleri Telegram üzerinden bildirir.
+Sepolia testnet faucet'inden otomatik token talep aracı. Birden fazla hesap ve cüzdan adresiyle kaydedilmiş Google oturumları kullanarak her 24 saatte bir ETH talep eder; bakiyeleri Telegram üzerinden bildirir.
 
 ## Özellikler
 
 - Playwright ile tarayıcı otomasyonu (başsız Chromium)
-- Tek cüzdan adresiyle **0.05 Sepolia ETH** talebi
+- Birden fazla hesap ile cüzdan başına **0.05 Sepolia ETH** talebi
 - Sepolia RPC üzerinden zincir içi bakiye sorgulama
 - Her claim döngüsünde Telegram bot bildirimi
 - Docker ve Railway ile dağıtım desteği
@@ -20,7 +20,7 @@ Gerçek bir tarayıcıda Google hesabına giriş yapıp oturumu kaydetmek için:
 go run . --capture
 ```
 
-Oturum `data/` dizinine kaydedilir; sonraki çalıştırmalar bu oturumu yeniden kullanır.
+Oturum `data/account/` dizinine kaydedilir; sonraki çalıştırmalar bu oturumu yeniden kullanır. Birden fazla Google hesabı kullanmak istiyorsanız bu adımı her hesap için tekrarlayın.
 
 ### 2. Claimer'ı başlat
 
@@ -28,7 +28,7 @@ Oturum `data/` dizinine kaydedilir; sonraki çalıştırmalar bu oturumu yeniden
 go run . --no-capture
 ```
 
-Döngü süresiz çalışır; her claim arasında 24 saat bekler.
+Döngü süresiz çalışır; her claim arasında ~24 saat 1 dakika bekler.
 
 ### 3. Bakiye sorgula
 
@@ -36,13 +36,13 @@ Döngü süresiz çalışır; her claim arasında 24 saat bekler.
 go run . --balance
 ```
 
-Yapılandırılmış cüzdanın mevcut bakiyelerini yazdırıp çıkar.
+Yapılandırılmış cüzdanların mevcut bakiyelerini yazdırıp çıkar.
 
 ## Ortam Değişkenleri
 
 | Değişken | Zorunlu | Açıklama |
 |---|---|---|
-| `WALLET_ADDRESS_ETH` | ✅ | ETH talebi için cüzdan adresi |
+| `WALLET_ADDRESSES` | ✅ | ETH talebi için cüzdan adresleri |
 | `TELEGRAM_BOT_TOKEN` | — | Telegram bot token'ı (etkinleştirmek için token ve chat ID birlikte girilmeli) |
 | `TELEGRAM_CHAT_ID` | — | Telegram sohbet/kullanıcı ID'si |
 | `LOG_LEVEL` | — | Log seviyesi: `debug`, `info`, `warn`, `error` (varsayılan: `info`) |
@@ -86,6 +86,8 @@ make -f deploy/Makefile build
 make -f deploy/Makefile docker-build
 
 # Konteyneri başlat
+# Not: compose-up, container başlamadan önce data/account/ dizininin
+# sahipliğini (UID 1000) ve izinlerini otomatik olarak düzeltir.
 make -f deploy/Makefile compose-up
 
 # Konteyneri durdur

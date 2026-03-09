@@ -1,11 +1,11 @@
 # sepoliar
 
-Automated Sepolia testnet faucet claimer. Claims ETH every 24 hours using a saved Google session, and reports balances via Telegram.
+Automated Sepolia testnet faucet claimer. Claims ETH every 24 hours using saved Google sessions across multiple wallet addresses, and reports balances via Telegram.
 
 ## Features
 
 - Browser automation via Playwright (headless Chromium)
-- Claims **0.05 Sepolia ETH** with a single wallet address
+- Claims **0.05 Sepolia ETH** per wallet across multiple accounts
 - On-chain balance checks via Sepolia RPC
 - Telegram bot notifications on each claim cycle
 - Docker and Railway deployment support
@@ -20,7 +20,7 @@ Open a real browser, sign in to Google, and save the session:
 go run . --capture
 ```
 
-This saves the session to `data/` so subsequent runs can reuse it.
+Session is saved to `data/account/` so subsequent runs can reuse it. Repeat this step for each Google account you want to use.
 
 ### 2. Run the claimer
 
@@ -28,7 +28,7 @@ This saves the session to `data/` so subsequent runs can reuse it.
 go run . --no-capture
 ```
 
-Runs the claim loop indefinitely, sleeping 24 hours between cycles.
+Runs the claim loop indefinitely, sleeping ~24h 1m between cycles.
 
 ### 3. Check balances
 
@@ -36,13 +36,13 @@ Runs the claim loop indefinitely, sleeping 24 hours between cycles.
 go run . --balance
 ```
 
-Prints current balances for the configured wallet and exits.
+Prints current balances for the configured wallets and exits.
 
 ## Environment Variables
 
 | Variable | Required | Description |
 |---|---|---|
-| `WALLET_ADDRESS_ETH` | ✅ | Wallet address for claiming ETH |
+| `WALLET_ADDRESSES` | ✅ | Wallet address for claiming ETH |
 | `TELEGRAM_BOT_TOKEN` | — | Telegram bot token (both token and chat ID must be set to enable) |
 | `TELEGRAM_CHAT_ID` | — | Telegram chat/user ID |
 | `LOG_LEVEL` | — | Log level: `debug`, `info`, `warn`, `error` (default: `info`) |
@@ -86,6 +86,8 @@ make -f deploy/Makefile build
 make -f deploy/Makefile docker-build
 
 # Start container
+# Note: compose-up automatically sets correct ownership (UID 1000)
+# and permissions on data/account/ before starting the container.
 make -f deploy/Makefile compose-up
 
 # Stop container

@@ -10,11 +10,17 @@ IMAGE_TAG  := 1.0.0
 build:
 	cd $(MAKEFILE_DIR)/.. && CGO_ENABLED=0 go build -buildvcs=false -ldflags="-w -s" -o sepoliar .
 
+
+
 docker-build:
 	cd $(MAKEFILE_DIR)/.. && docker build -t $(IMAGE_NAME):$(IMAGE_TAG) -f deploy/Dockerfile .
 
 compose-up:
-	docker compose -f $(MAKEFILE_DIR)/docker-compose.yaml up -d && docker compose -f $(MAKEFILE_DIR)/docker-compose.yaml logs -f
+	chown -R 1000:1000 $(MAKEFILE_DIR)/../data
+	chmod 755 $(MAKEFILE_DIR)/../data/account
+	chmod 644 $(MAKEFILE_DIR)/../data/account/*.json 2>/dev/null || true
+	docker compose -f $(MAKEFILE_DIR)/docker-compose.yaml up -d && \
+	docker compose -f $(MAKEFILE_DIR)/docker-compose.yaml logs -f
 
 
 

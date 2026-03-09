@@ -15,89 +15,25 @@ import (
 	"sepoliar/pkg/logger"
 )
 
-const authStateFile = "data/auth.json"
-
 type PlaywrightFaucetClaimer struct {
-	pw           *playwright.Playwright
-	browser      playwright.Browser
-	storageState playwright.OptionalStorageState
-	lg           logger.Logger
+	pw            *playwright.Playwright
+	browser       playwright.Browser
+	storageState  playwright.OptionalStorageState
+	lg            logger.Logger
+	authStateFile string
 }
 
-func New(pw *playwright.Playwright, lg logger.Logger) *PlaywrightFaucetClaimer {
-	return &PlaywrightFaucetClaimer{pw: pw, lg: lg}
-}
-
-func (p *PlaywrightFaucetClaimer) SessionExists() bool {
-	_, err := os.Stat(authStateFile)
-	return !os.IsNotExist(err)
-}
-
-func (p *PlaywrightFaucetClaimer) CaptureSession(ctx context.Context) error {
-	p.lg.Info(ctx, "Launching browser")
-
-	b, err := p.pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
-		Args:     []string{"--no-sandbox", "--disable-blink-features=AutomationControlled"},
-	})
-	if err != nil {
-		return fmt.Errorf("could not launch browser: %w", err)
-	}
-	defer b.Close()
-
-	bCtx, err := b.NewContext(playwright.BrowserNewContextOptions{
-		Viewport:  &playwright.Size{Width: 1280, Height: 900},
-		UserAgent: playwright.String("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
-	})
-	if err != nil {
-		return fmt.Errorf("could not create context: %w", err)
-	}
-	defer bCtx.Close()
-
-	page, err := bCtx.NewPage()
-	if err != nil {
-		return fmt.Errorf("could not create page: %w", err)
-	}
-
-	if _, err = page.Goto("https://cloud.google.com/application/web3/faucet/ethereum/sepolia", playwright.PageGotoOptions{
-		WaitUntil: playwright.WaitUntilStateLoad,
-		Timeout:   playwright.Float(60000),
-	}); err != nil {
-		return fmt.Errorf("could not navigate to faucet: %w", err)
-	}
-
-	p.lg.Info(ctx, "Browser launched. Sign in with your Google account.")
-	p.lg.Info(ctx, "After signing in and returning to the faucet page, press Enter in the terminal...")
-	fmt.Scanln() //nolint:errcheck
-
-	time.Sleep(2 * time.Second)
-
-	state, err := bCtx.StorageState()
-	if err != nil {
-		return fmt.Errorf("could not get storage state: %w", err)
-	}
-	data, err := json.Marshal(state)
-	if err != nil {
-		return fmt.Errorf("could not marshal storage state: %w", err)
-	}
-	if err = os.MkdirAll("data", 0700); err != nil {
-		return fmt.Errorf("could not create data directory: %w", err)
-	}
-	if err = os.WriteFile(authStateFile, data, 0600); err != nil {
-		return fmt.Errorf("could not write auth.json: %w", err)
-	}
-
-	p.lg.Info(ctx, "Session captured successfully.")
-	return nil
+func New(pw *playwright.Playwright, lg logger.Logger, authStateFile string) *PlaywrightFaucetClaimer {
+	return &PlaywrightFaucetClaimer{pw: pw, lg: lg, authStateFile: authStateFile}
 }
 
 func (p *PlaywrightFaucetClaimer) LoadSession() error {
-	stateData, err := os.ReadFile(authStateFile)
+	stateData, err := os.ReadFile(p.authStateFile)
 	if err != nil {
-		return fmt.Errorf("could not read auth.json: %w", err)
+		return fmt.Errorf("could not read auth file: %w", err)
 	}
 	if err = json.Unmarshal(stateData, &p.storageState); err != nil {
-		return fmt.Errorf("could not parse auth.json: %w", err)
+		return fmt.Errorf("could not parse auth file: %w", err)
 	}
 	p.browser, err = p.pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
 		Headless: playwright.Bool(true),
@@ -150,13 +86,12 @@ func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg domain.ClaimC
 	}
 
 	if strings.Contains(page.URL(), "accounts.google.com") {
-		if removeErr := os.Remove(authStateFile); removeErr != nil {
-			p.lg.Warn(ctx, "Could not delete auth.json", logger.Err(removeErr))
+		if removeErr := os.Remove(p.authStateFile); removeErr != nil {
+			p.lg.Warn(ctx, "Could not delete auth file", logger.Err(removeErr))
 		}
-		p.lg.Fatal(ctx, "Session expired. Deleted auth.json — run again to re-capture session.")
+		p.lg.Fatal(ctx, "Session expired. Deleted auth file — run --capture again.")
 	}
 
-	// Sayfada açık kalan dropdown'ı kapat (seçili option'a tıklayarak)
 	time.Sleep(1 * time.Second)
 	selectedOpt, _ := page.QuerySelector("[role='option'][aria-selected='true'], mat-option.mat-selected, li[aria-selected='true']")
 	if selectedOpt != nil {
@@ -180,7 +115,6 @@ func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg domain.ClaimC
 
 	time.Sleep(1 * time.Second)
 
-	// Butona tıklamadan önce rate limit kontrolü
 	earlyWarning, _ := page.Evaluate(`() => document.body.innerText.match(/Try again after/i)?.[0] ? (() => {
 		const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 		let node;

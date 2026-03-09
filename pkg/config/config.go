@@ -12,7 +12,7 @@ type Config struct {
 	LogLevel      string
 	EnabledTokens string
 	Telegram      TelegramConfig
-	Wallet        WalletConfig
+	Wallets       []WalletEntry
 	RPC           RPCConfig
 }
 
@@ -23,7 +23,7 @@ func Load() *Config {
 		LogLevel:      getEnv("LOG_LEVEL", "info"),
 		EnabledTokens: getEnv("ENABLED_TOKENS", "ETH"),
 		Telegram:      loadTelegramConfig(),
-		Wallet:        loadWalletConfig(),
+		Wallets:       loadWallets(),
 		RPC:           loadRPCConfig(),
 	}
 }

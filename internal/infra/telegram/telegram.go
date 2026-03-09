@@ -93,7 +93,7 @@ func (n *Notifier) StartPolling(ctx context.Context, activeTokens func() []strin
 					if next.IsZero() {
 						sb.WriteString("Next run time not yet determined.")
 					} else {
-						sb.WriteString(fmt.Sprintf("Next run: %s", next.Format("Mon, 02 Jan 2006 15:04:05")))
+						sb.WriteString(fmt.Sprintf("Next run: %s", next.Format("02.01.2006 - 15:04:05")))
 					}
 				}
 				n.sendMsg(ctx, chatIDStr, sb.String())

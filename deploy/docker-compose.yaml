@@ -7,7 +7,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       ENABLED_TOKENS: ${ENABLED_TOKENS}
-      WALLET_ADDRESS_ETH: ${WALLET_ADDRESS_ETH}
+      WALLET_ADDRESSES: ${WALLET_ADDRESSES}
     volumes:
       - ../data:/app/data:ro
     restart: unless-stopped

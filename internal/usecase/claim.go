@@ -12,6 +12,12 @@ import (
 
 const interval = 24*time.Hour + time.Minute
 
+type AccountResult struct {
+	Name    string
+	Wallet  string
+	Results []domain.ClaimResult
+}
+
 type ClaimUseCase struct {
 	lg      logger.Logger
 	fetcher domain.BalanceFetcher
@@ -48,49 +54,55 @@ func (uc *ClaimUseCase) Execute(ctx context.Context, claimer domain.FaucetClaime
 	return results
 }
 
-func (uc *ClaimUseCase) FetchBalances(ctx context.Context, configs []domain.ClaimConfig) string {
+func (uc *ClaimUseCase) FetchBalancesForConfigs(ctx context.Context, name, wallet string, configs []domain.ClaimConfig) string {
 	if uc.fetcher == nil {
-		return "Balance fetcher not configured."
+		return ""
 	}
 	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("%s\n%s\n", name, wallet))
 	for _, cfg := range configs {
 		bal, err := uc.fetcher.GetBalance(ctx, cfg)
 		if err != nil {
-			sb.WriteString(fmt.Sprintf("%s: error: %v\n", cfg.TokenName, err))
+			sb.WriteString(fmt.Sprintf("  %-6s error: %v\n", cfg.TokenName+":", err))
 		} else {
-			sb.WriteString(fmt.Sprintf("%-6s %s\n", cfg.TokenName+":", bal))
+			sb.WriteString(fmt.Sprintf("  %-6s %s\n", cfg.TokenName+":", bal))
 		}
 	}
-	return strings.TrimRight(sb.String(), "\n")
+	return sb.String()
 }
 
-func (uc *ClaimUseCase) ComputeNext(results []domain.ClaimResult) time.Time {
+func (uc *ClaimUseCase) ComputeNext(allResults []AccountResult) time.Time {
 	next := time.Now().Add(interval)
-	for _, r := range results {
-		if r.RetryAt != nil {
-			if candidate := r.RetryAt.Add(interval); candidate.After(next) {
-				next = candidate
+	for _, acc := range allResults {
+		for _, r := range acc.Results {
+			if r.RetryAt != nil {
+				if candidate := r.RetryAt.Add(interval); candidate.After(next) {
+					next = candidate
+				}
 			}
 		}
 	}
 	return next
 }
 
-func (uc *ClaimUseCase) FormatMessage(results []domain.ClaimResult, next time.Time) string {
+func (uc *ClaimUseCase) FormatCombinedMessage(accounts []AccountResult, next time.Time) string {
 	var sb strings.Builder
-	for i, r := range results {
+	for i, acc := range accounts {
 		if i > 0 {
 			sb.WriteString("\n")
 		}
-		if r.Err != nil {
-			sb.WriteString(fmt.Sprintf("%s: ❌ %v\n", r.TokenName, r.Err))
-		} else {
-			sb.WriteString(fmt.Sprintf("%s: %s\n", r.TokenName, r.Message))
-		}
-		if r.BalanceBefore != "" || r.BalanceAfter != "" {
-			sb.WriteString(fmt.Sprintf("  💰 Before: %s → After: %s\n", r.BalanceBefore, r.BalanceAfter))
+		sb.WriteString(fmt.Sprintf("%s\n%s\n", acc.Name, acc.Wallet))
+		for _, r := range acc.Results {
+			if r.Err != nil {
+				sb.WriteString(fmt.Sprintf("  %s: ❌ %v\n", r.TokenName, r.Err))
+			} else {
+				sb.WriteString(fmt.Sprintf("  %s: %s\n", r.TokenName, r.Message))
+			}
+			if r.BalanceBefore != "" || r.BalanceAfter != "" {
+				sb.WriteString(fmt.Sprintf("    💰 Before: %s → After: %s\n", r.BalanceBefore, r.BalanceAfter))
+			}
 		}
 	}
-	sb.WriteString(fmt.Sprintf("\n⏰ Next run: %s", next.Format("Mon, 02 Jan 2006 15:04:05")))
+	sb.WriteString(fmt.Sprintf("\n⏰ Next run: %s", next.Format("02.01.2006 - 15:04:05")))
 	return sb.String()
 }

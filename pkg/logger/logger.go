@@ -2,7 +2,6 @@ package logger
 
 import "context"
 
-// Logger interface defines logging operations
 type Logger interface {
 	Trace(ctx context.Context, msg string, fields ...Field)
 	Debug(ctx context.Context, msg string, fields ...Field)

@@ -6,8 +6,6 @@ import (
 )
 
 type FaucetClaimer interface {
-	SessionExists() bool
-	CaptureSession(ctx context.Context) error
 	LoadSession() error
 	Claim(ctx context.Context, cfg ClaimConfig) ClaimResult
 	Close() error

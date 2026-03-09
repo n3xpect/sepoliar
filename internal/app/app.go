@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,9 +11,15 @@ import (
 	"sepoliar/pkg/logger"
 )
 
+type AccountEntry struct {
+	Name    string
+	Claimer domain.FaucetClaimer
+	Wallet  string
+	Configs []domain.ClaimConfig
+}
+
 type App struct {
-	configs      []domain.ClaimConfig
-	claimer      domain.FaucetClaimer
+	accounts     []AccountEntry
 	notifier     domain.Notifier
 	uc           *usecase.ClaimUseCase
 	lg           logger.Logger
@@ -22,35 +29,52 @@ type App struct {
 }
 
 func New(
-	configs []domain.ClaimConfig,
-	claimer domain.FaucetClaimer,
+	accounts []AccountEntry,
 	notifier domain.Notifier,
 	uc *usecase.ClaimUseCase,
 	lg logger.Logger,
 ) *App {
-	tokens := make([]string, 0, len(configs))
-	for _, c := range configs {
-		tokens = append(tokens, c.TokenName)
+	tokens := make(map[string]bool)
+	for _, acc := range accounts {
+		for _, c := range acc.Configs {
+			tokens[c.TokenName] = true
+		}
+	}
+	activeTokens := make([]string, 0, len(tokens))
+	for t := range tokens {
+		activeTokens = append(activeTokens, t)
 	}
 	return &App{
-		configs:      configs,
-		claimer:      claimer,
+		accounts:     accounts,
 		notifier:     notifier,
 		uc:           uc,
 		lg:           lg,
-		activeTokens: tokens,
+		activeTokens: activeTokens,
 	}
 }
 
 func (a *App) Run(ctx context.Context) {
-	if err := a.claimer.LoadSession(); err != nil {
-		a.lg.Fatal(ctx, "Could not load session. Run with --capture first.", logger.Err(err))
+	for _, acc := range a.accounts {
+		if err := acc.Claimer.LoadSession(); err != nil {
+			a.lg.Fatal(ctx, "Could not load session — run --capture first.",
+				logger.String("account", acc.Name), logger.Err(err))
+		}
 	}
-	defer func() { _ = a.claimer.Close() }()
+	for _, acc := range a.accounts {
+		acc := acc
+		defer func() { _ = acc.Claimer.Close() }()
+	}
 
 	if a.notifier != nil {
 		go a.notifier.StartPolling(ctx, a.getActiveTokens, a.getNextRun, func() string {
-			return a.uc.FetchBalances(ctx, a.configs)
+			var sb strings.Builder
+			for i, acc := range a.accounts {
+				if i > 0 {
+					sb.WriteString("\n")
+				}
+				sb.WriteString(a.uc.FetchBalancesForConfigs(ctx, acc.Name, acc.Wallet, acc.Configs))
+			}
+			return sb.String()
 		})
 		a.lg.Info(ctx, "Telegram notifications enabled.")
 	} else {
@@ -58,15 +82,24 @@ func (a *App) Run(ctx context.Context) {
 	}
 
 	for {
-		results := a.uc.Execute(ctx, a.claimer, a.configs)
-		next := a.uc.ComputeNext(results)
+		var allResults []usecase.AccountResult
+		for _, acc := range a.accounts {
+			results := a.uc.Execute(ctx, acc.Claimer, acc.Configs)
+			allResults = append(allResults, usecase.AccountResult{
+				Name:    acc.Name,
+				Wallet:  acc.Wallet,
+				Results: results,
+			})
+		}
+
+		next := a.uc.ComputeNext(allResults)
 		a.setNextRun(next)
-		msg := a.uc.FormatMessage(results, next)
+		msg := a.uc.FormatCombinedMessage(allResults, next)
 		a.lg.Info(ctx, msg)
 		if a.notifier != nil {
 			_ = a.notifier.Send(ctx, msg)
 		}
-		a.lg.Info(ctx, "Next attempt", logger.String("at", next.Format("Mon, 02 Jan 2006 15:04:05")))
+		a.lg.Info(ctx, "Next attempt", logger.String("at", next.Format("02.01.2006 - 15:04:05")))
 		time.Sleep(time.Until(next))
 	}
 }

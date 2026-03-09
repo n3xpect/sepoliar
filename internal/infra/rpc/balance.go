@@ -113,9 +113,7 @@ func hexToDecimal(hexStr string, decimals int) (string, error) {
 	whole := new(big.Int).Div(val, divisor)
 	remainder := new(big.Int).Mod(val, divisor)
 
-	// Küsurat kısmını decimals uzunluğunda sıfır dolgulu string'e çevir
 	fracStr := fmt.Sprintf("%0*s", decimals, remainder.String())
-	// Anlamlı rakam sayısını 10 ile sınırla, sondaki sıfırları temizle
 	if len(fracStr) > 10 {
 		fracStr = fracStr[:10]
 	}

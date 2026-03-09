@@ -7,8 +7,8 @@ type ClaimConfig struct {
 	WalletAddress string
 	ButtonText    string
 	TokenName     string
-	TokenAddress  string // boşsa native ETH, doluysa ERC-20 contract adresi
-	TokenDecimals int    // ETH için 18, PYUSD için 6
+	TokenAddress  string
+	TokenDecimals int
 }
 
 type ClaimResult struct {
