@@ -29,13 +29,13 @@ type cmd struct {
 
 func main() {
 	capture := flag.Bool("capture", false, "")
-	noCapture := flag.Bool("no-capture", false, "")
+	start := flag.Bool("start", false, "")
 	balance := flag.Bool("balance", false, "")
 
 	flag.Usage = func() {
-		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --no-capture | --balance]\n\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --start | --balance]\n\n")
 		_, _ = fmt.Fprintf(os.Stderr, "  --capture     Opens a browser for Google sign-in and saves the session (email auto-detected)\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --no-capture  Starts the faucet claim loop using saved sessions\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --start       Starts the faucet claim loop using saved sessions\n")
 		_, _ = fmt.Fprintf(os.Stderr, "  --balance     Prints current wallet balances and exits\n")
 		_, _ = fmt.Fprintf(os.Stderr, "  --help        Show this help message\n")
 	}
@@ -55,7 +55,7 @@ func main() {
 		c.balance()
 	case *capture:
 		c.capture()
-	case *noCapture:
+	case *start:
 		c.claim()
 	default:
 		flag.Usage()
