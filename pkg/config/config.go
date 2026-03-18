@@ -9,22 +9,30 @@ import (
 )
 
 type Config struct {
-	LogLevel      string
-	EnabledTokens string
-	Telegram      TelegramConfig
-	Wallets       []WalletEntry
-	RPC           RPCConfig
+	LogLevel             string
+	EnabledTokens        string
+	FaucetURLETH         string
+	FaucetURLPYUSD       string
+	PyUSDContractAddress string
+	Telegram             TelegramConfig
+	Wallets              []WalletEntry
+	RPC                  RPCConfig
 }
 
 func Load() *Config {
 	_ = godotenv.Load()
 
+	rootUrl := new("https://cloud.google.com/application/web3/faucet/ethereum/sepolia")
+
 	return &Config{
-		LogLevel:      getEnv("LOG_LEVEL", "info"),
-		EnabledTokens: getEnvRequired("ENABLED_TOKENS"),
-		Telegram:      loadTelegramConfig(),
-		Wallets:       loadWallets(),
-		RPC:           loadRPCConfig(),
+		LogLevel:             getEnv("LOG_LEVEL", "info"),
+		EnabledTokens:        getEnvRequired("ENABLED_TOKENS"),
+		FaucetURLETH:         *rootUrl,
+		FaucetURLPYUSD:       fmt.Sprintf("%s/pyusd", *rootUrl),
+		PyUSDContractAddress: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9",
+		Telegram:             loadTelegramConfig(),
+		Wallets:              loadWallets(),
+		RPC:                  loadRPCConfig(),
 	}
 }
 
