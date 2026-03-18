@@ -83,7 +83,34 @@ func promptKey() [32]byte {
 	return crypto.DeriveKey(passphrase)
 }
 
+func (c *cmd) validateSessions(files []string) {
+	var encFiles []string
+	for _, f := range files {
+		if strings.HasSuffix(f, ".enc") {
+			encFiles = append(encFiles, f)
+		}
+	}
+	if len(encFiles) == 0 {
+		c.lg.Fatal(c.ctx, "No encrypted session files found. Run --capture first.")
+	}
+	for _, f := range encFiles {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			c.lg.Fatal(c.ctx, "Could not read session file", logger.String("file", f), logger.Err(err))
+		}
+		if _, err = crypto.Decrypt(raw, c.key); err != nil {
+			c.lg.Fatal(c.ctx, "Could not decrypt session file — wrong key?", logger.String("file", f), logger.Err(err))
+		}
+	}
+}
+
 func (c *cmd) balance() {
+	accountFiles, err := readAccountFiles()
+	if err != nil {
+		c.lg.Fatal(c.ctx, "Could not read account files", logger.Err(err))
+	}
+	c.validateSessions(accountFiles)
+
 	fetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL)
 
 	type tokenResult struct {
@@ -151,6 +178,7 @@ func (c *cmd) claim() {
 	if len(accountFiles) == 0 {
 		c.lg.Fatal(c.ctx, "No account files found in data/account/. Run --capture first.")
 	}
+	c.validateSessions(accountFiles)
 
 	pw, err := playwright.Run()
 	if err != nil {
