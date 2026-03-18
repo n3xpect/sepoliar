@@ -12,6 +12,7 @@ import (
 	"github.com/playwright-community/playwright-go"
 
 	"sepoliar/internal/domain"
+	"sepoliar/pkg/crypto"
 	"sepoliar/pkg/logger"
 )
 
@@ -21,16 +22,24 @@ type PlaywrightFaucetClaimer struct {
 	storageState  playwright.OptionalStorageState
 	lg            logger.Logger
 	authStateFile string
+	key           [32]byte
 }
 
-func New(pw *playwright.Playwright, lg logger.Logger, authStateFile string) *PlaywrightFaucetClaimer {
-	return &PlaywrightFaucetClaimer{pw: pw, lg: lg, authStateFile: authStateFile}
+func New(pw *playwright.Playwright, lg logger.Logger, authStateFile string, key [32]byte) *PlaywrightFaucetClaimer {
+	return &PlaywrightFaucetClaimer{pw: pw, lg: lg, authStateFile: authStateFile, key: key}
 }
 
 func (p *PlaywrightFaucetClaimer) LoadSession() error {
-	stateData, err := os.ReadFile(p.authStateFile)
+	raw, err := os.ReadFile(p.authStateFile)
 	if err != nil {
 		return fmt.Errorf("could not read auth file: %w", err)
+	}
+	stateData := raw
+	if strings.HasSuffix(p.authStateFile, ".enc") {
+		stateData, err = crypto.Decrypt(raw, p.key)
+		if err != nil {
+			return fmt.Errorf("could not decrypt auth file: %w", err)
+		}
 	}
 	if err = json.Unmarshal(stateData, &p.storageState); err != nil {
 		return fmt.Errorf("could not parse auth file: %w", err)

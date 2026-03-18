@@ -1,0 +1,10 @@
+services:
+  sepoliar:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    volumes:
+      - ./data:/app/data
+    env_file: .env
+    stdin_open: true
+    tty: true

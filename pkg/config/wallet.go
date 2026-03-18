@@ -22,7 +22,7 @@ func LoadWallets(accountFiles []string) []WalletEntry {
 	}
 	entries := make([]WalletEntry, len(parts))
 	for i, p := range parts {
-		base := strings.TrimSuffix(filepath.Base(accountFiles[i]), ".json")
+		base := strings.TrimSuffix(strings.TrimSuffix(filepath.Base(accountFiles[i]), ".enc"), ".json")
 		if idx := strings.Index(base, "_"); idx >= 0 {
 			base = base[idx+1:]
 		}

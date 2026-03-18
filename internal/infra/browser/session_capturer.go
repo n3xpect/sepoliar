@@ -10,16 +10,18 @@ import (
 
 	"github.com/playwright-community/playwright-go"
 
+	"sepoliar/pkg/crypto"
 	"sepoliar/pkg/logger"
 )
 
 type PlaywrightSessionCapturer struct {
-	pw *playwright.Playwright
-	lg logger.Logger
+	pw  *playwright.Playwright
+	lg  logger.Logger
+	key [32]byte
 }
 
-func NewSessionCapturer(pw *playwright.Playwright, lg logger.Logger) *PlaywrightSessionCapturer {
-	return &PlaywrightSessionCapturer{pw: pw, lg: lg}
+func NewSessionCapturer(pw *playwright.Playwright, lg logger.Logger, key [32]byte) *PlaywrightSessionCapturer {
+	return &PlaywrightSessionCapturer{pw: pw, lg: lg, key: key}
 }
 
 func (s *PlaywrightSessionCapturer) CaptureSession(ctx context.Context) error {
@@ -79,14 +81,19 @@ func (s *PlaywrightSessionCapturer) CaptureSession(ctx context.Context) error {
 		return fmt.Errorf("could not create data/account directory: %w", err)
 	}
 
-	index := countExistingAccountFiles()
-	filePath := fmt.Sprintf("data/account/%d_%s.json", index, email)
+	encrypted, err := crypto.Encrypt(data, s.key)
+	if err != nil {
+		return fmt.Errorf("could not encrypt session: %w", err)
+	}
 
-	if err = os.WriteFile(filePath, data, 0600); err != nil {
+	index := countExistingAccountFiles()
+	filePath := fmt.Sprintf("data/account/%d_%s.enc", index, email)
+
+	if err = os.WriteFile(filePath, encrypted, 0600); err != nil {
 		return fmt.Errorf("could not write session file: %w", err)
 	}
 
-	s.lg.Info(ctx, fmt.Sprintf("Session captured successfully → %s. Run with --no-capture to start claiming.", filePath))
+	s.lg.Info(ctx, fmt.Sprintf("Session captured successfully → %s. Run with --start to start claiming.", filePath))
 	return nil
 }
 
@@ -149,7 +156,7 @@ func countExistingAccountFiles() int {
 	}
 	count := 0
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+		if !e.IsDir() && (strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), ".enc")) {
 			count++
 		}
 	}

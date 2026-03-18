@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"sepoliar/internal/infra/telegram"
 	"sepoliar/internal/usecase"
 	"sepoliar/pkg/config"
+	"sepoliar/pkg/crypto"
 	"sepoliar/pkg/logger"
 )
 
@@ -25,18 +27,21 @@ type cmd struct {
 	cfg *config.Config
 	lg  logger.Logger
 	ctx context.Context
+	key [32]byte
 }
 
 func main() {
 	capture := flag.Bool("capture", false, "")
 	start := flag.Bool("start", false, "")
 	balance := flag.Bool("balance", false, "")
+	encrypt := flag.Bool("encrypt", false, "")
 
 	flag.Usage = func() {
-		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --start | --balance]\n\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --capture     Opens a browser for Google sign-in and saves the session (email auto-detected)\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --start | --balance | --encrypt]\n\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --capture     Opens a browser for Google sign-in and saves the encrypted session\n")
 		_, _ = fmt.Fprintf(os.Stderr, "  --start       Starts the faucet claim loop using saved sessions\n")
 		_, _ = fmt.Fprintf(os.Stderr, "  --balance     Prints current wallet balances and exits\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --encrypt     Encrypts existing plaintext session files\n")
 		_, _ = fmt.Fprintf(os.Stderr, "  --help        Show this help message\n")
 	}
 
@@ -47,8 +52,9 @@ func main() {
 		os.Exit(0)
 	}
 
+	key := promptKey()
 	cfg := config.Load()
-	c := &cmd{cfg: cfg, lg: logger.NewLog(cfg.LogLevel), ctx: context.Background()}
+	c := &cmd{cfg: cfg, lg: logger.NewLog(cfg.LogLevel), ctx: context.Background(), key: key}
 
 	switch {
 	case *balance:
@@ -57,10 +63,24 @@ func main() {
 		c.capture()
 	case *start:
 		c.claim()
+	case *encrypt:
+		c.encrypt()
 	default:
 		flag.Usage()
 		os.Exit(0)
 	}
+}
+
+func promptKey() [32]byte {
+	fmt.Fprint(os.Stderr, "Encryption key: ")
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	passphrase := strings.TrimSpace(line)
+	if passphrase == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "Error: encryption key cannot be empty")
+		os.Exit(1)
+	}
+	return crypto.DeriveKey(passphrase)
 }
 
 func (c *cmd) balance() {
@@ -109,6 +129,7 @@ func (c *cmd) balance() {
 		}
 	}
 }
+
 func (c *cmd) capture() {
 	pw, err := playwright.Run()
 	if err != nil {
@@ -116,11 +137,12 @@ func (c *cmd) capture() {
 	}
 	defer func() { _ = pw.Stop() }()
 
-	capturer := browser.NewSessionCapturer(pw, c.lg)
+	capturer := browser.NewSessionCapturer(pw, c.lg, c.key)
 	if err := capturer.CaptureSession(c.ctx); err != nil {
 		c.lg.Fatal(c.ctx, "Could not capture session", logger.Err(err))
 	}
 }
+
 func (c *cmd) claim() {
 	accountFiles, err := readAccountFiles()
 	if err != nil {
@@ -146,7 +168,7 @@ func (c *cmd) claim() {
 	for i, authFile := range accountFiles {
 		entries[i] = app.AccountEntry{
 			Name:    wallets[i].Name,
-			Claimer: browser.New(pw, c.lg, authFile),
+			Claimer: browser.New(pw, c.lg, authFile, c.key),
 			Wallet:  wallets[i].Address,
 			Configs: c.buildConfigs(wallets[i].Address),
 		}
@@ -158,6 +180,47 @@ func (c *cmd) claim() {
 	a := app.New(entries, notifier, uc, c.lg)
 	a.Run(c.ctx)
 }
+
+func (c *cmd) encrypt() {
+	entries, err := os.ReadDir("data/account")
+	if err != nil {
+		c.lg.Fatal(c.ctx, "Could not read data/account", logger.Err(err))
+	}
+
+	var encrypted int
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		src := filepath.Join("data/account", e.Name())
+		data, err := os.ReadFile(src)
+		if err != nil {
+			c.lg.Error(c.ctx, "Could not read file", logger.String("file", src), logger.Err(err))
+			continue
+		}
+		enc, err := crypto.Encrypt(data, c.key)
+		if err != nil {
+			c.lg.Error(c.ctx, "Could not encrypt file", logger.String("file", src), logger.Err(err))
+			continue
+		}
+		dst := strings.TrimSuffix(src, ".json") + ".enc"
+		if err = os.WriteFile(dst, enc, 0600); err != nil {
+			c.lg.Error(c.ctx, "Could not write encrypted file", logger.String("file", dst), logger.Err(err))
+			continue
+		}
+		if err = os.Remove(src); err != nil {
+			c.lg.Error(c.ctx, "Could not remove plaintext file", logger.String("file", src), logger.Err(err))
+			continue
+		}
+		c.lg.Info(c.ctx, "Encrypted", logger.String("file", dst))
+		encrypted++
+	}
+
+	if encrypted == 0 {
+		c.lg.Warn(c.ctx, "No plaintext .json session files found to encrypt.")
+	}
+}
+
 func (c *cmd) buildConfigs(walletAddress string) []domain.ClaimConfig {
 	all := []domain.ClaimConfig{
 		{
@@ -202,7 +265,7 @@ func readAccountFiles() ([]string, error) {
 
 	var files []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".json") {
+		if !e.IsDir() && (strings.HasSuffix(e.Name(), ".json") || strings.HasSuffix(e.Name(), ".enc")) {
 			files = append(files, filepath.Join("data/account", e.Name()))
 		}
 	}
