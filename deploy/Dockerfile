@@ -50,6 +50,7 @@ COPY --from=builder /root/.cache/ms-playwright-go /home/appuser/.cache/ms-playwr
 COPY data/ ./data/
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV TZ=UTC
 
 RUN chown -R appuser:appuser /app /home/appuser/.cache
 USER appuser
