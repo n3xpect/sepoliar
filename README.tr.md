@@ -2,12 +2,12 @@
 
 ## Nedir?
 
-[Google Cloud Web3 Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), Sepolia testnet için istek başına **0.05 ETH** veren ve Google hesabı gerektiren bir faucet'tir. Sepoliar, bu faucet'ten token talep işlemini otomatikleştirir: Playwright aracılığıyla şifreli Google oturumlarını kaydeder, birden fazla cüzdan adresinde claim döngüsünü çalıştırır ve sonuçları Telegram üzerinden bildirir.
+[Google Cloud Web3 Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), Sepolia testnet için istek başına **0.05 ETH** veya **100 PYUSD** veren ve Google hesabı gerektiren bir faucet'tir. Sepoliar, bu faucet'ten token talep işlemini otomatikleştirir: Playwright aracılığıyla şifreli Google oturumlarını kaydeder, birden fazla cüzdan adresi ve token türü için claim döngüsünü çalıştırır ve sonuçları Telegram üzerinden bildirir.
 
 ## Özellikler
 
 - Playwright ile tarayıcı otomasyonu (headless Chromium)
-- Birden fazla hesap ile cüzdan başına **0.05 Sepolia ETH** talebi
+- Birden fazla hesap ile cüzdan başına **0.05 Sepolia ETH** ve/veya **100 Sepolia PYUSD** talebi
 - Sepolia RPC üzerinden zincir içi bakiye sorgulama
 - Etherscan üzerinden son işlem zamanına dayalı başlangıç cooldown kontrolü
 - Her claim döngüsünde Telegram bot bildirimi
@@ -77,7 +77,6 @@ go run . --encrypt
 | `TZ` | — | Log zaman damgaları için saat dilimi (örn. `Europe/Istanbul`) |
 | `TELEGRAM_BOT_TOKEN` | — | Telegram bot token'ı (etkinleştirmek için token ve chat ID birlikte girilmeli) |
 | `TELEGRAM_CHAT_ID` | — | Telegram sohbet/kullanıcı ID'si |
-| `ENABLED_TOKENS` | ✅ | Claim edilecek token listesi (virgülle ayrılmış): `ETH`, `PYUSD` |
 | `WALLET_ADDRESSES` | ✅ | Claim için cüzdan adresleri (virgülle ayrılmış) |
 | `ETHERSCAN_API_KEY` | ✅ | Son işlem zamanı sorgusu için Etherscan API anahtarı (cooldown hesabı) |
 | `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Oturum dosyaları şifreleme anahtarı; `--capture`, `--claim`, `--encrypt` için geçerlidir (Docker'da zorunlu — etkileşimli istem yok; CLI'da isteğe bağlı) |
