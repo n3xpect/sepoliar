@@ -24,24 +24,28 @@ import (
 
 type cmd struct {
 	cfg *config.Config
-	lg  logger.Logger
+	log logger.Logger
 	ctx context.Context
 	key [32]byte
 }
 
 func main() {
 	capture := flag.Bool("capture", false, "")
-	start := flag.Bool("start", false, "")
+	flag.BoolVar(capture, "C", false, "")
+	claim := flag.Bool("claim", false, "")
+	flag.BoolVar(claim, "c", false, "")
 	balance := flag.Bool("balance", false, "")
+	flag.BoolVar(balance, "b", false, "")
 	encrypt := flag.Bool("encrypt", false, "")
+	flag.BoolVar(encrypt, "e", false, "")
 
 	flag.Usage = func() {
-		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --start | --balance | --encrypt]\n\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --capture     Opens a browser for Google sign-in and saves the encrypted session\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --start       Starts the faucet claim loop using saved sessions\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --balance     Prints current wallet balances and exits\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --encrypt     Encrypts existing plaintext session files\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --help        Show this help message\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --claim | --balance | --encrypt]\n\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --capture, -C     Opens a browser for Google sign-in and saves the encrypted session\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --claim,   -c     Starts the faucet claim loop using saved sessions\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --balance, -b     Prints current wallet balances and exits\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --encrypt, -e     Encrypts existing plaintext session files\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --help,    -h     Show this help message\n")
 	}
 
 	flag.Parse()
@@ -51,18 +55,20 @@ func main() {
 		os.Exit(0)
 	}
 
-	key := promptKey()
 	cfg := config.Load()
-	c := &cmd{cfg: cfg, lg: logger.NewLog(cfg.LogLevel), ctx: context.Background(), key: key}
+	c := &cmd{cfg: cfg, log: logger.NewLog(cfg.LogLevel), ctx: context.Background()}
 
 	switch {
 	case *balance:
 		c.balance()
 	case *capture:
+		c.key = promptKey()
 		c.capture()
-	case *start:
+	case *claim:
+		c.key = promptKey()
 		c.claim()
 	case *encrypt:
+		c.key = promptKey()
 		c.encrypt()
 	default:
 		flag.Usage()
@@ -71,6 +77,9 @@ func main() {
 }
 
 func promptKey() [32]byte {
+	if val := os.Getenv("SEPOLIAR_ENCRYPTION_KEY"); val != "" {
+		return crypto.DeriveKey(val)
+	}
 	_, _ = fmt.Fprint(os.Stderr, "Encryption key: ")
 	reader := bufio.NewReader(os.Stdin)
 	line, _ := reader.ReadString('\n')
@@ -90,26 +99,20 @@ func (c *cmd) validateSessions(files []string) {
 		}
 	}
 	if len(encFiles) == 0 {
-		c.lg.Fatal(c.ctx, "No encrypted session files found. Run --capture first.")
+		c.log.Fatal(c.ctx, "No encrypted session files found. Run --capture first.")
 	}
 	for _, f := range encFiles {
 		raw, err := os.ReadFile(f)
 		if err != nil {
-			c.lg.Fatal(c.ctx, "Could not read session file", logger.String("file", f), logger.Err(err))
+			c.log.Fatal(c.ctx, "Could not read session file", logger.String("file", f), logger.Err(err))
 		}
 		if _, err = crypto.Decrypt(raw, c.key); err != nil {
-			c.lg.Fatal(c.ctx, "Could not decrypt session file — wrong key?", logger.String("file", f), logger.Err(err))
+			c.log.Fatal(c.ctx, "Could not decrypt session file — wrong key?", logger.String("file", f), logger.Err(err))
 		}
 	}
 }
 func (c *cmd) balance() {
-	accountFiles, err := readAccountFiles()
-	if err != nil {
-		c.lg.Fatal(c.ctx, "Could not read account files", logger.Err(err))
-	}
-	c.validateSessions(accountFiles)
-
-	fetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL)
+	fetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL, c.cfg.RPC.EtherscanAPIKey)
 
 	type tokenResult struct {
 		name string
@@ -157,56 +160,56 @@ func (c *cmd) balance() {
 func (c *cmd) capture() {
 	pw, err := playwright.Run()
 	if err != nil {
-		c.lg.Fatal(c.ctx, "Could not start playwright", logger.Err(err))
+		c.log.Fatal(c.ctx, "Could not start playwright", logger.Err(err))
 	}
 	defer func() { _ = pw.Stop() }()
 
-	capturer := browser.NewSessionCapturer(pw, c.lg, c.key)
+	capturer := browser.NewSessionCapturer(pw, c.log, c.key)
 	if err := capturer.CaptureSession(c.ctx); err != nil {
-		c.lg.Fatal(c.ctx, "Could not capture session", logger.Err(err))
+		c.log.Fatal(c.ctx, "Could not capture session", logger.Err(err))
 	}
 }
 func (c *cmd) claim() {
 	accountFiles, err := readAccountFiles()
 	if err != nil {
-		c.lg.Fatal(c.ctx, "Could not read account files", logger.Err(err))
+		c.log.Fatal(c.ctx, "Could not read account files", logger.Err(err))
 	}
 	if len(accountFiles) == 0 {
-		c.lg.Fatal(c.ctx, "No account files found in data/account/. Run --capture first.")
+		c.log.Fatal(c.ctx, "No account files found in data/account/. Run --capture first.")
 	}
 	c.validateSessions(accountFiles)
 
 	pw, err := playwright.Run()
 	if err != nil {
-		c.lg.Fatal(c.ctx, "Could not start playwright", logger.Err(err))
+		c.log.Fatal(c.ctx, "Could not start playwright", logger.Err(err))
 	}
 	defer func() { _ = pw.Stop() }()
 
 	wallets := config.LoadWallets(accountFiles)
 
 	if (c.cfg.Telegram.BotToken == "") != (c.cfg.Telegram.ChatID == "") {
-		c.lg.Warn(c.ctx, "Only one of TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID is set — Telegram disabled.")
+		c.log.Warn(c.ctx, "Only one of TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID is set — Telegram disabled.")
 	}
 
 	entries := make([]service.AccountEntry, len(accountFiles))
 	for i, authFile := range accountFiles {
 		entries[i] = service.AccountEntry{
 			Name:    wallets[i].Name,
-			Claimer: browser.New(pw, c.lg, authFile, c.key),
+			Claimer: browser.New(pw, c.log, authFile, c.key),
 			Wallet:  wallets[i].Address,
 			Configs: c.buildConfigs(wallets[i].Address),
 		}
 	}
 
-	notifier := telegram.New(c.cfg.Telegram.BotToken, c.cfg.Telegram.ChatID, c.lg)
-	balanceFetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL)
-	svc := service.New(entries, notifier, balanceFetcher, c.lg)
+	notifier := telegram.New(c.cfg.Telegram.BotToken, c.cfg.Telegram.ChatID, c.log)
+	balanceFetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL, c.cfg.RPC.EtherscanAPIKey)
+	svc := service.New(entries, notifier, balanceFetcher, c.log)
 	svc.Run(c.ctx)
 }
 func (c *cmd) encrypt() {
 	entries, err := os.ReadDir("data/account")
 	if err != nil {
-		c.lg.Fatal(c.ctx, "Could not read data/account", logger.Err(err))
+		c.log.Fatal(c.ctx, "Could not read data/account", logger.Err(err))
 	}
 
 	var encrypted int
@@ -217,29 +220,29 @@ func (c *cmd) encrypt() {
 		src := filepath.Join("data/account", e.Name())
 		data, err := os.ReadFile(src)
 		if err != nil {
-			c.lg.Error(c.ctx, "Could not read file", logger.String("file", src), logger.Err(err))
+			c.log.Error(c.ctx, "Could not read file", logger.String("file", src), logger.Err(err))
 			continue
 		}
 		enc, err := crypto.Encrypt(data, c.key)
 		if err != nil {
-			c.lg.Error(c.ctx, "Could not encrypt file", logger.String("file", src), logger.Err(err))
+			c.log.Error(c.ctx, "Could not encrypt file", logger.String("file", src), logger.Err(err))
 			continue
 		}
 		dst := strings.TrimSuffix(src, ".json") + ".enc"
 		if err = os.WriteFile(dst, enc, 0600); err != nil {
-			c.lg.Error(c.ctx, "Could not write encrypted file", logger.String("file", dst), logger.Err(err))
+			c.log.Error(c.ctx, "Could not write encrypted file", logger.String("file", dst), logger.Err(err))
 			continue
 		}
 		if err = os.Remove(src); err != nil {
-			c.lg.Error(c.ctx, "Could not remove plaintext file", logger.String("file", src), logger.Err(err))
+			c.log.Error(c.ctx, "Could not remove plaintext file", logger.String("file", src), logger.Err(err))
 			continue
 		}
-		c.lg.Info(c.ctx, "Encrypted", logger.String("file", dst))
+		c.log.Info(c.ctx, "Encrypted", logger.String("file", dst))
 		encrypted++
 	}
 
 	if encrypted == 0 {
-		c.lg.Warn(c.ctx, "No plaintext .json session files found to encrypt.")
+		c.log.Warn(c.ctx, "No plaintext .json session files found to encrypt.")
 	}
 }
 func (c *cmd) buildConfigs(walletAddress string) []model.ClaimConfig {

@@ -54,4 +54,4 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN chown -R appuser:appuser /app /home/appuser/.cache
 USER appuser
 
-CMD ["./sepoliar", "--start"]
+CMD ["./sepoliar", "--claim"]
