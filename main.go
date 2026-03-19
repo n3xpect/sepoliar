@@ -264,18 +264,7 @@ func (c *cmd) buildConfigs(walletAddress string) []model.ClaimConfig {
 		},
 	}
 
-	enabled := make(map[string]bool)
-	for _, t := range strings.Split(c.cfg.EnabledTokens, ",") {
-		enabled[strings.TrimSpace(strings.ToUpper(t))] = true
-	}
-
-	var result []model.ClaimConfig
-	for _, cfg := range all {
-		if enabled[cfg.TokenName] {
-			result = append(result, cfg)
-		}
-	}
-	return result
+	return all
 }
 
 func readAccountFiles() ([]string, error) {
