@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"sepoliar/pkg/logger"
@@ -37,7 +36,7 @@ func (n *Notifier) Send(ctx context.Context, msg string) error {
 	_ = resp.Body.Close()
 	return nil
 }
-func (n *Notifier) StartPolling(ctx context.Context, activeTokens func() []string, nextRun func() time.Time, getBalances func() string) {
+func (n *Notifier) StartPolling(ctx context.Context, onClaim func() bool, getBalances func() string) {
 	type tgChat struct {
 		ID int64 `json:"id"`
 	}
@@ -81,25 +80,16 @@ func (n *Notifier) StartPolling(ctx context.Context, activeTokens func() []strin
 				continue
 			}
 			switch update.Message.Text {
-			case "/start":
-				var sb strings.Builder
-				tokens := activeTokens()
-				if len(tokens) == 0 {
-					sb.WriteString("No wallet addresses configured.")
+			case "/claim":
+				if onClaim() {
+					n.sendMsg(ctx, chatIDStr, "Claim cycle starting...")
 				} else {
-					sb.WriteString("Active: " + strings.Join(tokens, ", ") + "\n")
-					next := nextRun()
-					if next.IsZero() {
-						sb.WriteString("Next run time not yet determined.")
-					} else {
-						sb.WriteString(fmt.Sprintf("Next run: %s", next.Format("02.01.2006 - 15:04:05")))
-					}
+					n.sendMsg(ctx, chatIDStr, "Claim is already running.")
 				}
-				n.sendMsg(ctx, chatIDStr, sb.String())
 			case "/balance":
 				n.sendMsg(ctx, chatIDStr, getBalances())
 			default:
-				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /start or /balance.")
+				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /claim or /balance.")
 			}
 		}
 	}

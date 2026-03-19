@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -30,13 +31,12 @@ type accountResult struct {
 }
 
 type Service struct {
-	accounts     []AccountEntry
-	notifier     *telegram.Notifier
-	fetcher      *rpc.BalanceFetcher
-	lg           logger.Logger
-	mu           sync.RWMutex
-	nextRunAt    time.Time
-	activeTokens []string
+	accounts  []AccountEntry
+	notifier  *telegram.Notifier
+	fetcher   *rpc.BalanceFetcher
+	lg        logger.Logger
+	mu        sync.RWMutex
+	nextRunAt time.Time
 }
 
 func New(
@@ -45,22 +45,11 @@ func New(
 	fetcher *rpc.BalanceFetcher,
 	lg logger.Logger,
 ) *Service {
-	tokens := make(map[string]bool)
-	for _, acc := range accounts {
-		for _, c := range acc.Configs {
-			tokens[c.TokenName] = true
-		}
-	}
-	activeTokens := make([]string, 0, len(tokens))
-	for t := range tokens {
-		activeTokens = append(activeTokens, t)
-	}
 	return &Service{
-		accounts:     accounts,
-		notifier:     notifier,
-		fetcher:      fetcher,
-		lg:           lg,
-		activeTokens: activeTokens,
+		accounts: accounts,
+		notifier: notifier,
+		fetcher:  fetcher,
+		lg:       lg,
 	}
 }
 
@@ -77,7 +66,15 @@ func (s *Service) Run(ctx context.Context) {
 	}
 
 	if s.notifier != nil {
-		go s.notifier.StartPolling(ctx, s.getActiveTokens, s.getNextRun, func() string {
+		claimCh := make(chan struct{}, 1)
+		go s.notifier.StartPolling(ctx, func() bool {
+			select {
+			case claimCh <- struct{}{}:
+				return true
+			default:
+				return false
+			}
+		}, func() string {
 			var sb strings.Builder
 			for i, acc := range s.accounts {
 				if i > 0 {
@@ -87,9 +84,15 @@ func (s *Service) Run(ctx context.Context) {
 			}
 			return sb.String()
 		})
-		s.lg.Info(ctx, "Telegram notifications enabled.")
+		s.lg.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
+		<-claimCh
+		s.lg.Info(ctx, "Claim cycle triggered via Telegram.")
 	} else {
 		s.lg.Info(ctx, "Telegram not configured, running in console mode.")
+	}
+
+	if err := s.checkStartupCooldown(ctx); err != nil {
+		os.Exit(1)
 	}
 
 	for {
@@ -103,7 +106,7 @@ func (s *Service) Run(ctx context.Context) {
 			})
 		}
 
-		next := s.computeNext(allResults)
+		next := s.computeNext(ctx, allResults)
 		s.setNextRun(next)
 		msg := s.formatCombinedMessage(allResults, next)
 		s.lg.Info(ctx, msg)
@@ -156,8 +159,16 @@ func (s *Service) fetchBalancesForConfigs(ctx context.Context, name, wallet stri
 	}
 	return sb.String()
 }
-func (s *Service) computeNext(allResults []accountResult) time.Time {
-	next := time.Now().Add(interval)
+func (s *Service) computeNext(ctx context.Context, allResults []accountResult) time.Time {
+	base := time.Now()
+	if s.fetcher != nil && len(s.accounts) > 0 {
+		if t, err := s.fetcher.GetLastTxTime(ctx, s.accounts[0].Wallet); err == nil {
+			base = t
+		} else {
+			s.lg.Warn(ctx, "Could not fetch last tx time, falling back to now", logger.Err(err))
+		}
+	}
+	next := base.Add(interval)
 	for _, acc := range allResults {
 		for _, r := range acc.Results {
 			if r.RetryAt != nil {
@@ -190,18 +201,50 @@ func (s *Service) formatCombinedMessage(accounts []accountResult, next time.Time
 	sb.WriteString(fmt.Sprintf("\n⏰ Next run: %s", next.Format("02.01.2006 - 15:04:05")))
 	return sb.String()
 }
+func (s *Service) checkStartupCooldown(ctx context.Context) error {
+	if s.fetcher == nil {
+		return nil
+	}
+
+	var latestNext time.Time
+	for _, acc := range s.accounts {
+		t, err := s.fetcher.GetLastTxTime(ctx, acc.Wallet)
+		if err != nil {
+			s.lg.Error(ctx, "Could not fetch last tx time",
+				logger.String("wallet", acc.Wallet),
+				logger.String("error", err.Error()),
+			)
+			return err
+		}
+		s.lg.Info(ctx, "Last claim",
+			logger.String("wallet", acc.Wallet),
+			logger.String("time", t.Format("02.01.2006 - 15:04:05")),
+		)
+		next := t.Add(interval)
+		if next.After(time.Now()) {
+			remaining := time.Until(next).Round(time.Second)
+			s.lg.Warn(ctx, "Cooldown active",
+				logger.String("wallet", acc.Wallet),
+				logger.String("next_run", next.Format("02.01.2006 - 15:04:05")),
+				logger.String("remaining", remaining.String()),
+			)
+		}
+		if next.After(latestNext) {
+			latestNext = next
+		}
+	}
+
+	if latestNext.After(time.Now()) {
+		s.setNextRun(latestNext)
+		s.lg.Info(ctx, "Waiting for cooldown",
+			logger.String("until", latestNext.Format("02.01.2006 - 15:04:05")),
+		)
+		time.Sleep(time.Until(latestNext))
+	}
+	return nil
+}
 func (s *Service) setNextRun(t time.Time) {
 	s.mu.Lock()
 	s.nextRunAt = t
 	s.mu.Unlock()
-}
-func (s *Service) getNextRun() time.Time {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.nextRunAt
-}
-func (s *Service) getActiveTokens() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.activeTokens
 }
