@@ -7,17 +7,20 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"sepoliar/internal/model"
 )
 
 type BalanceFetcher struct {
-	rpcURL string
+	rpcURL       string
+	etherscanKey string
 }
 
-func New(rpcURL string) *BalanceFetcher {
-	return &BalanceFetcher{rpcURL: rpcURL}
+func New(rpcURL, etherscanKey string) *BalanceFetcher {
+	return &BalanceFetcher{rpcURL: rpcURL, etherscanKey: etherscanKey}
 }
 
 func (f *BalanceFetcher) GetBalance(ctx context.Context, cfg model.ClaimConfig) (string, error) {
@@ -25,6 +28,56 @@ func (f *BalanceFetcher) GetBalance(ctx context.Context, cfg model.ClaimConfig) 
 		return f.getNativeBalance(ctx, cfg.WalletAddress, cfg.TokenDecimals)
 	}
 	return f.getERC20Balance(ctx, cfg.WalletAddress, cfg.TokenAddress, cfg.TokenDecimals)
+}
+
+func (f *BalanceFetcher) GetLastTxTime(ctx context.Context, address string) (time.Time, error) {
+	if f.etherscanKey == "" {
+		return time.Time{}, fmt.Errorf("etherscan API key not configured")
+	}
+	url := fmt.Sprintf(
+		"https://api.etherscan.io/v2/api?chainid=11155111&module=account&action=txlist&address=%s&startblock=0&endblock=99999999&page=1&offset=1&sort=desc&apikey=%s",
+		address, f.etherscanKey,
+	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return time.Time{}, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var apiResp struct {
+		Status  string          `json:"status"`
+		Message string          `json:"message"`
+		Result  json.RawMessage `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return time.Time{}, err
+	}
+	if apiResp.Status != "1" {
+		var msg string
+		_ = json.Unmarshal(apiResp.Result, &msg)
+		if msg == "" {
+			msg = apiResp.Message
+		}
+		return time.Time{}, fmt.Errorf("etherscan error: %s", msg)
+	}
+	var txList []struct {
+		TimeStamp string `json:"timeStamp"`
+	}
+	if err := json.Unmarshal(apiResp.Result, &txList); err != nil {
+		return time.Time{}, err
+	}
+	if len(txList) == 0 {
+		return time.Time{}, fmt.Errorf("no transactions found for address %s", address)
+	}
+	ts, err := strconv.ParseInt(txList[0].TimeStamp, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid timestamp %q: %w", txList[0].TimeStamp, err)
+	}
+	return time.Unix(ts, 0), nil
 }
 
 type rpcRequest struct {

@@ -3,11 +3,13 @@ package config
 const sepoliaRPCURL = "https://ethereum-sepolia-rpc.publicnode.com"
 
 type RPCConfig struct {
-	SepoliaRPCURL string
+	SepoliaRPCURL   string
+	EtherscanAPIKey string
 }
 
 func loadRPCConfig() RPCConfig {
 	return RPCConfig{
-		SepoliaRPCURL: sepoliaRPCURL,
+		SepoliaRPCURL:   sepoliaRPCURL,
+		EtherscanAPIKey: getEnv("ETHERSCAN_API_KEY", ""),
 	}
 }
