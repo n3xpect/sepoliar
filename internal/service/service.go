@@ -56,7 +56,7 @@ func New(
 func (s *Service) Run(ctx context.Context) {
 	for _, acc := range s.accounts {
 		if err := acc.Claimer.LoadSession(); err != nil {
-			s.log.Fatal(ctx, "Could not load session — run --capture first.",
+			s.log.Fatal(ctx, "Could not load session — run --google-sign-in first.",
 				logger.String("account", acc.Name), logger.Err(err))
 		}
 	}
@@ -67,14 +67,32 @@ func (s *Service) Run(ctx context.Context) {
 
 	if s.notifier != nil {
 		claimCh := make(chan struct{}, 1)
-		go s.notifier.StartPolling(ctx, func() bool {
+		go s.notifier.StartPolling(ctx, func() string {
+			s.mu.RLock()
+			nextRun := s.nextRunAt
+			s.mu.RUnlock()
+
+			if !nextRun.IsZero() && nextRun.After(time.Now()) {
+				remaining := time.Until(nextRun).Round(time.Second)
+				return fmt.Sprintf(
+					"Cooldown active\n\nNext run: %s\nRemaining: %s\n\nWaiting...",
+					nextRun.Format("02.01.2006 - 15:04:05"),
+					formatDuration(remaining),
+				)
+			}
 			select {
 			case claimCh <- struct{}{}:
-				return true
+				return "Claim cycle starting..."
 			default:
-				return false
+				return "Claim is already running."
 			}
 		}, func() string {
+			s.mu.RLock()
+			nextRun := s.nextRunAt
+			s.mu.RUnlock()
+			if nextRun.IsZero() {
+				return "No balance data yet. Send /claim first."
+			}
 			var sb strings.Builder
 			for i, acc := range s.accounts {
 				if i > 0 {
@@ -84,7 +102,8 @@ func (s *Service) Run(ctx context.Context) {
 			}
 			return sb.String()
 		})
-		s.log.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
+		_ = s.notifier.Send(ctx, "Bot is online. Send /claim to start the claiming process.")
+	s.log.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
 		<-claimCh
 		s.log.Info(ctx, "Claim cycle triggered via Telegram.")
 	} else {

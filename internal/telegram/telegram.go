@@ -36,7 +36,7 @@ func (n *Notifier) Send(ctx context.Context, msg string) error {
 	_ = resp.Body.Close()
 	return nil
 }
-func (n *Notifier) StartPolling(ctx context.Context, onClaim func() bool, getBalances func() string) {
+func (n *Notifier) StartPolling(ctx context.Context, onClaim func() string, getBalances func() string) {
 	type tgChat struct {
 		ID int64 `json:"id"`
 	}
@@ -81,13 +81,11 @@ func (n *Notifier) StartPolling(ctx context.Context, onClaim func() bool, getBal
 			}
 			switch update.Message.Text {
 			case "/claim":
-				if onClaim() {
-					n.sendMsg(ctx, chatIDStr, "Claim cycle starting...")
-				} else {
-					n.sendMsg(ctx, chatIDStr, "Claim is already running.")
-				}
+				n.sendMsg(ctx, chatIDStr, onClaim())
 			case "/balance":
-				n.sendMsg(ctx, chatIDStr, getBalances())
+				balances := getBalances()
+				n.log.Info(ctx, "Balance query via Telegram:\n"+balances)
+				n.sendMsg(ctx, chatIDStr, balances)
 			default:
 				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /claim or /balance.")
 			}
