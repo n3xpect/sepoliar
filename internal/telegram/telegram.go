@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"sepoliar/internal/domain"
 	"sepoliar/pkg/logger"
 )
 
@@ -20,7 +19,7 @@ type Notifier struct {
 	log    logger.Logger
 }
 
-func New(token, chatID string, lg logger.Logger) domain.Notifier {
+func New(token, chatID string, lg logger.Logger) *Notifier {
 	if token == "" || chatID == "" {
 		return nil
 	}
@@ -97,7 +96,7 @@ func (n *Notifier) StartPolling(ctx context.Context, activeTokens func() []strin
 					}
 				}
 				n.sendMsg(ctx, chatIDStr, sb.String())
-				case "/balance":
+			case "/balance":
 				n.sendMsg(ctx, chatIDStr, getBalances())
 			default:
 				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /start or /balance.")

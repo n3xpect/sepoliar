@@ -11,7 +11,7 @@ import (
 
 	"github.com/playwright-community/playwright-go"
 
-	"sepoliar/internal/domain"
+	"sepoliar/internal/model"
 	"sepoliar/pkg/crypto"
 	"sepoliar/pkg/logger"
 )
@@ -53,25 +53,22 @@ func (p *PlaywrightFaucetClaimer) LoadSession() error {
 	}
 	return nil
 }
-
 func (p *PlaywrightFaucetClaimer) Close() error {
 	if p.browser != nil {
 		return p.browser.Close()
 	}
 	return nil
 }
-
-func (p *PlaywrightFaucetClaimer) Claim(ctx context.Context, cfg domain.ClaimConfig) domain.ClaimResult {
+func (p *PlaywrightFaucetClaimer) Claim(ctx context.Context, cfg model.ClaimConfig) model.ClaimResult {
 	msg, retryAt, err := p.doClaim(ctx, cfg)
-	return domain.ClaimResult{
+	return model.ClaimResult{
 		TokenName: cfg.TokenName,
 		Message:   msg,
 		RetryAt:   retryAt,
 		Err:       err,
 	}
 }
-
-func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg domain.ClaimConfig) (string, *time.Time, error) {
+func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg model.ClaimConfig) (string, *time.Time, error) {
 	bCtx, err := p.browser.NewContext(playwright.BrowserNewContextOptions{
 		Viewport:     &playwright.Size{Width: 1280, Height: 900},
 		StorageState: &p.storageState,

@@ -12,12 +12,11 @@ import (
 
 	"github.com/playwright-community/playwright-go"
 
-	"sepoliar/internal/app"
-	"sepoliar/internal/domain"
-	"sepoliar/internal/infra/browser"
-	"sepoliar/internal/infra/rpc"
-	"sepoliar/internal/infra/telegram"
-	"sepoliar/internal/usecase"
+	"sepoliar/internal/browser"
+	"sepoliar/internal/model"
+	"sepoliar/internal/rpc"
+	"sepoliar/internal/service"
+	"sepoliar/internal/telegram"
 	"sepoliar/pkg/config"
 	"sepoliar/pkg/crypto"
 	"sepoliar/pkg/logger"
@@ -72,7 +71,7 @@ func main() {
 }
 
 func promptKey() [32]byte {
-	fmt.Fprint(os.Stderr, "Encryption key: ")
+	_, _ = fmt.Fprint(os.Stderr, "Encryption key: ")
 	reader := bufio.NewReader(os.Stdin)
 	line, _ := reader.ReadString('\n')
 	passphrase := strings.TrimSpace(line)
@@ -103,7 +102,6 @@ func (c *cmd) validateSessions(files []string) {
 		}
 	}
 }
-
 func (c *cmd) balance() {
 	accountFiles, err := readAccountFiles()
 	if err != nil {
@@ -131,7 +129,7 @@ func (c *cmd) balance() {
 		tokens := make([]tokenResult, len(configs))
 		wg.Add(len(configs))
 		for j, cfg := range configs {
-			go func(j int, cfg domain.ClaimConfig) {
+			go func(j int, cfg model.ClaimConfig) {
 				defer wg.Done()
 				bal, err := fetcher.GetBalance(c.ctx, cfg)
 				tokens[j] = tokenResult{name: cfg.TokenName, bal: bal, err: err}
@@ -156,7 +154,6 @@ func (c *cmd) balance() {
 		}
 	}
 }
-
 func (c *cmd) capture() {
 	pw, err := playwright.Run()
 	if err != nil {
@@ -169,7 +166,6 @@ func (c *cmd) capture() {
 		c.lg.Fatal(c.ctx, "Could not capture session", logger.Err(err))
 	}
 }
-
 func (c *cmd) claim() {
 	accountFiles, err := readAccountFiles()
 	if err != nil {
@@ -192,9 +188,9 @@ func (c *cmd) claim() {
 		c.lg.Warn(c.ctx, "Only one of TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID is set — Telegram disabled.")
 	}
 
-	entries := make([]app.AccountEntry, len(accountFiles))
+	entries := make([]service.AccountEntry, len(accountFiles))
 	for i, authFile := range accountFiles {
-		entries[i] = app.AccountEntry{
+		entries[i] = service.AccountEntry{
 			Name:    wallets[i].Name,
 			Claimer: browser.New(pw, c.lg, authFile, c.key),
 			Wallet:  wallets[i].Address,
@@ -204,11 +200,9 @@ func (c *cmd) claim() {
 
 	notifier := telegram.New(c.cfg.Telegram.BotToken, c.cfg.Telegram.ChatID, c.lg)
 	balanceFetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL)
-	uc := usecase.New(c.lg, balanceFetcher)
-	a := app.New(entries, notifier, uc, c.lg)
-	a.Run(c.ctx)
+	svc := service.New(entries, notifier, balanceFetcher, c.lg)
+	svc.Run(c.ctx)
 }
-
 func (c *cmd) encrypt() {
 	entries, err := os.ReadDir("data/account")
 	if err != nil {
@@ -248,9 +242,8 @@ func (c *cmd) encrypt() {
 		c.lg.Warn(c.ctx, "No plaintext .json session files found to encrypt.")
 	}
 }
-
-func (c *cmd) buildConfigs(walletAddress string) []domain.ClaimConfig {
-	all := []domain.ClaimConfig{
+func (c *cmd) buildConfigs(walletAddress string) []model.ClaimConfig {
+	all := []model.ClaimConfig{
 		{
 			FaucetURL:     c.cfg.FaucetURLETH,
 			WalletAddress: walletAddress,
@@ -273,7 +266,7 @@ func (c *cmd) buildConfigs(walletAddress string) []domain.ClaimConfig {
 		enabled[strings.TrimSpace(strings.ToUpper(t))] = true
 	}
 
-	var result []domain.ClaimConfig
+	var result []model.ClaimConfig
 	for _, cfg := range all {
 		if enabled[cfg.TokenName] {
 			result = append(result, cfg)

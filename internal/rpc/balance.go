@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"sepoliar/internal/domain"
+	"sepoliar/internal/model"
 )
 
 type BalanceFetcher struct {
@@ -20,7 +20,7 @@ func New(rpcURL string) *BalanceFetcher {
 	return &BalanceFetcher{rpcURL: rpcURL}
 }
 
-func (f *BalanceFetcher) GetBalance(ctx context.Context, cfg domain.ClaimConfig) (string, error) {
+func (f *BalanceFetcher) GetBalance(ctx context.Context, cfg model.ClaimConfig) (string, error) {
 	if cfg.TokenAddress == "" {
 		return f.getNativeBalance(ctx, cfg.WalletAddress, cfg.TokenDecimals)
 	}
