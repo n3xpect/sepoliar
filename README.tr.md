@@ -2,7 +2,7 @@
 
 ## Nedir?
 
-[Google Cloud Web3 Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), Sepolia testnet için istek başına **0.05 ETH** veya **100 PYUSD** veren ve Google hesabı gerektiren bir faucet'tir. Sepoliar, bu faucet'ten token talep işlemini otomatikleştirir: Playwright aracılığıyla şifreli Google oturumlarını kaydeder, birden fazla cüzdan adresi ve token türü için claim döngüsünü çalıştırır ve sonuçları Telegram üzerinden bildirir.
+[Google Cloud Web3 Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia), Sepolia testnet için istek başına **0.05 ETH** ve/veya **100 PYUSD** veren ve Google hesabı gerektiren bir faucet'tir. Sepoliar, bu faucet'ten token talep işlemini otomatikleştirir: Playwright aracılığıyla şifreli Google oturumlarını kaydeder, birden fazla cüzdan adresi ve token türü için claim döngüsünü çalıştırır ve sonuçları Telegram üzerinden bildirir.
 
 ## Özellikler
 
@@ -22,7 +22,7 @@
 [cloud.google.com/application/web3/faucet/ethereum/sepolia](https://cloud.google.com/application/web3/faucet/ethereum/sepolia) adresindeki faucet bir Google hesabı gerektirir. Gerçek bir tarayıcıda Google hesabına giriş yapıp şifreli oturumu kaydetmek için:
 
 ```sh
-go run . --capture
+go run . --google-sign-in
 ```
 
 Şifreleme anahtarı girmeniz istenecektir. Oturum `data/account/` dizinine kaydedilir; sonraki çalıştırmalar bu oturumu yeniden kullanır. Birden fazla Google hesabı kullanmak istiyorsanız bu adımı her hesap için tekrarlayın.
@@ -36,9 +36,9 @@ go run . --claim
 Telegram yapılandırıldıysa uygulama, `/claim` komutu gönderilene kadar bekler.
 Telegram yapılandırılmamışsa döngü hemen başlar.
 
-> **Telegram yapılandırıldıysa:** Uygulama başlar ve `/claim` komutunu beklemeye girer. Telegram botuna `/claim` gönderince döngü başlar. Bot aşağıdaki yanıtları verir:
-> - `Claim cycle starting...` — döngü başladı
-> - Cooldown aktifse: `Cooldown active\nNext run: <tarih> - <saat>\nRemaining: <süre>\nWaiting...`
+> **Telegram yapılandırıldıysa:** Uygulama başlar ve `/claim` komutunu beklemeye girer. Telegram botuna `/claim` gönderince bot şu yanıtlardan birini verir:
+> - `Claim cycle starting...` — cooldown yok, döngü başladı
+> - `Cooldown active\nNext run: <tarih> - <saat>\nRemaining: <süre>\nWaiting...` — cooldown aktif, süresi dolana kadar döngü başlamaz
 > Telegram yapılandırılmamışsa döngü beklenmeden hemen başlar.
 
 Her döngü arasında ~24 saat 1 dakika beklenir. Bir sonraki çalışma zamanı, Etherscan üzerinden alınan son zincir içi işlem zamanına göre hesaplanır.
@@ -51,22 +51,13 @@ go run . --balance
 
 Yapılandırılmış cüzdanların mevcut bakiyelerini yazdırıp çıkar. Şifreleme anahtarı gerektirmez.
 
-### 4. Mevcut oturumları şifrele
-
-```sh
-go run . --encrypt
-```
-
-Şifrelenmemiş mevcut `.json` oturum dosyaları için tek seferlik geçiş adımı.
-
 ## CLI Bayrakları
 
 | Bayrak | Kısa | Açıklama |
 |---|---|---|
-| `--capture` | `-C` | Tarayıcı açar, Google'a giriş yapılır ve şifreli oturum kaydedilir |
+| `--google-sign-in` | `-g` | Tarayıcı açar, Google'a giriş yapılır ve şifreli oturum kaydedilir |
 | `--claim` | `-c` | Kaydedilmiş oturumları kullanarak claim döngüsünü başlatır |
 | `--balance` | `-b` | Mevcut cüzdan bakiyelerini yazdırıp çıkar |
-| `--encrypt` | `-e` | Mevcut düz metin oturum dosyalarını şifreler |
 | `--help` | `-h` | Yardım mesajını gösterir |
 
 ## Ortam Değişkenleri
@@ -79,7 +70,7 @@ go run . --encrypt
 | `TELEGRAM_CHAT_ID` | — | Telegram sohbet/kullanıcı ID'si |
 | `WALLET_ADDRESSES` | ✅ | Claim için cüzdan adresleri (virgülle ayrılmış) |
 | `ETHERSCAN_API_KEY` | ✅ | Son işlem zamanı sorgusu için Etherscan API anahtarı (cooldown hesabı) |
-| `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Oturum dosyaları şifreleme anahtarı; `--capture`, `--claim`, `--encrypt` için geçerlidir (Docker'da zorunlu — etkileşimli istem yok; CLI'da isteğe bağlı) |
+| `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Oturum dosyaları şifreleme anahtarı; `--google-sign-in`, `--claim` için geçerlidir (Docker'da zorunlu — etkileşimli istem yok; CLI'da isteğe bağlı) |
 
 `.env.example` dosyasını `.env` olarak kopyalayıp gerekli değerleri doldurun.
 
@@ -88,17 +79,17 @@ go run . --encrypt
 | Komut | Açıklama |
 |---|---|
 | `/claim` | Claim döngüsünü başlatır (yalnızca uygulama bekleme modundayken çalışır) |
-| `/balance` | Mevcut cüzdan bakiyelerini döndürür |
+| `/balance` | Mevcut cüzdan bakiyelerini döndürür (yalnızca ilk claim döngüsü tamamlandıktan sonra kullanılabilir) |
 
-> Telegram yapılandırıldığında `--claim` başlangıçta bloklar ve devam etmeden önce `/claim` komutunu bekler. Bir döngü zaten çalışırken `/claim` gönderilirse bot "Claim is already running." yanıtı verir.
+> Telegram yapılandırıldığında `--claim` başlangıçta bloklar ve devam etmeden önce `/claim` komutunu bekler. Cooldown aktifse `/claim`, kalan süreyle birlikte cooldown mesajı döndürür; döngü başlamaz. Bir döngü zaten çalışıyorsa bot "Claim is already running." yanıtı verir.
 
 ### Telegram ile Claim Akışı
 
 1. `./sepoliar --claim` çalıştır — uygulama `/claim` beklemeye girer
 2. Telegram botuna `/claim` gönder
-3. Bot `Claim cycle starting...` ile yanıt verir
-4. Cooldown aktifse bot `Cooldown active / Next run / Remaining / Waiting...` mesajı gönderir ve döngü bekler
-5. Cooldown dolunca claim işlemi gerçekleşir
+3. Cooldown aktifse → bot `Cooldown active / Next run / Remaining / Waiting...` ile yanıt verir; cooldown bittikten sonra tekrar `/claim` gönder
+4. Cooldown yoksa → bot `Claim cycle starting...` ile yanıt verir ve döngü başlar
+5. Döngü tamamlanınca uygulama ~24s 1dk uyur
 
 ## Dağıtım
 
@@ -112,7 +103,7 @@ make build
 ./sepoliar --help
 
 # Google oturumunu kaydet (hesap başına bir kez çalıştır)
-./sepoliar --capture
+./sepoliar --google-sign-in
 
 # Claim döngüsünü başlat
 ./sepoliar --claim
