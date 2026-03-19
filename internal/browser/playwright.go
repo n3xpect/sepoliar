@@ -154,9 +154,19 @@ func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg model.ClaimCo
 	if err = claimButton.Click(); err != nil {
 		return "", nil, fmt.Errorf("could not click claim button")
 	}
-	p.lg.Info(ctx, "Claim button clicked, waiting 20s for result", logger.String("token", cfg.TokenName))
+	p.lg.Info(ctx, "Claim button clicked, waiting for result", logger.String("token", cfg.TokenName))
 
-	time.Sleep(20 * time.Second)
+	_, waitErr := page.WaitForFunction(
+		`() => {
+			const t = document.body.innerText.toLowerCase();
+			return t.includes('transaction complete') || t.includes('try again after');
+		}`,
+		nil,
+		playwright.PageWaitForFunctionOptions{Timeout: playwright.Float(300000)},
+	)
+	if waitErr != nil {
+		p.lg.Warn(ctx, "Timed out waiting for result, reading page anyway", logger.String("token", cfg.TokenName))
+	}
 
 	bodyText, evalErr := page.Evaluate("() => document.body.innerText")
 	if evalErr != nil {
