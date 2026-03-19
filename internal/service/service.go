@@ -190,15 +190,14 @@ func (s *Service) formatCombinedMessage(accounts []accountResult, next time.Time
 		if i > 0 {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(fmt.Sprintf("%s\n%s\n", acc.Name, acc.Wallet))
+		sb.WriteString(fmt.Sprintf("%s\n", acc.Name))
 		for _, r := range acc.Results {
 			if r.Err != nil {
 				sb.WriteString(fmt.Sprintf("  %s: ❌ %v\n", r.TokenName, r.Err))
+			} else if r.BalanceBefore != "" || r.BalanceAfter != "" {
+				sb.WriteString(fmt.Sprintf("  %s: %s -> %s\n", r.TokenName, r.BalanceBefore, r.BalanceAfter))
 			} else {
 				sb.WriteString(fmt.Sprintf("  %s: %s\n", r.TokenName, r.Message))
-			}
-			if r.BalanceBefore != "" || r.BalanceAfter != "" {
-				sb.WriteString(fmt.Sprintf("    💰 Before: %s → After: %s\n", r.BalanceBefore, r.BalanceAfter))
 			}
 		}
 	}
