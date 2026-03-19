@@ -30,22 +30,18 @@ type cmd struct {
 }
 
 func main() {
-	capture := flag.Bool("capture", false, "")
-	flag.BoolVar(capture, "C", false, "")
+	googleSignIn := flag.Bool("google-sign-in", false, "")
+	flag.BoolVar(googleSignIn, "g", false, "")
 	claim := flag.Bool("claim", false, "")
 	flag.BoolVar(claim, "c", false, "")
 	balance := flag.Bool("balance", false, "")
 	flag.BoolVar(balance, "b", false, "")
-	encrypt := flag.Bool("encrypt", false, "")
-	flag.BoolVar(encrypt, "e", false, "")
-
 	flag.Usage = func() {
-		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--capture | --claim | --balance | --encrypt]\n\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --capture, -C     Opens a browser for Google sign-in and saves the encrypted session\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --claim,   -c     Starts the faucet claim loop using saved sessions\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --balance, -b     Prints current wallet balances and exits\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --encrypt, -e     Encrypts existing plaintext session files\n")
-		_, _ = fmt.Fprintf(os.Stderr, "  --help,    -h     Show this help message\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: sepoliar [--google-sign-in | --claim | --balance]\n\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --google-sign-in, -g  Opens a browser for Google sign-in and saves the encrypted session\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --claim,          -c  Starts the faucet claim loop using saved sessions\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --balance,        -b  Prints current wallet balances and exits\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  --help,           -h  Show this help message\n")
 	}
 
 	flag.Parse()
@@ -61,15 +57,11 @@ func main() {
 	switch {
 	case *balance:
 		c.balance()
-	case *capture:
+	case *googleSignIn:
 		c.key = promptKey()
-		c.capture()
+		c.googleSignIn()
 	case *claim:
-		c.key = promptKey()
 		c.claim()
-	case *encrypt:
-		c.key = promptKey()
-		c.encrypt()
 	default:
 		flag.Usage()
 		os.Exit(0)
@@ -79,6 +71,11 @@ func main() {
 func promptKey() [32]byte {
 	if val := os.Getenv("SEPOLIAR_ENCRYPTION_KEY"); val != "" {
 		return crypto.DeriveKey(val)
+	}
+	fi, err := os.Stdin.Stat()
+	if err != nil || (fi.Mode()&os.ModeCharDevice) == 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "FATAL: SEPOLIAR_ENCRYPTION_KEY is required in non-interactive mode")
+		os.Exit(1)
 	}
 	_, _ = fmt.Fprint(os.Stderr, "Encryption key: ")
 	reader := bufio.NewReader(os.Stdin)
@@ -99,7 +96,7 @@ func (c *cmd) validateSessions(files []string) {
 		}
 	}
 	if len(encFiles) == 0 {
-		c.log.Fatal(c.ctx, "No encrypted session files found. Run --capture first.")
+		c.log.Fatal(c.ctx, "No encrypted session files found. Run --google-sign-in first.")
 	}
 	for _, f := range encFiles {
 		raw, err := os.ReadFile(f)
@@ -157,7 +154,7 @@ func (c *cmd) balance() {
 		}
 	}
 }
-func (c *cmd) capture() {
+func (c *cmd) googleSignIn() {
 	pw, err := playwright.Run()
 	if err != nil {
 		c.log.Fatal(c.ctx, "Could not start playwright", logger.Err(err))
@@ -175,8 +172,9 @@ func (c *cmd) claim() {
 		c.log.Fatal(c.ctx, "Could not read account files", logger.Err(err))
 	}
 	if len(accountFiles) == 0 {
-		c.log.Fatal(c.ctx, "No account files found in data/account/. Run --capture first.")
+		c.log.Fatal(c.ctx, "No account files found in data/account/. Run --google-sign-in first.")
 	}
+	c.key = promptKey()
 	c.validateSessions(accountFiles)
 
 	pw, err := playwright.Run()
@@ -205,45 +203,6 @@ func (c *cmd) claim() {
 	balanceFetcher := rpc.New(c.cfg.RPC.SepoliaRPCURL, c.cfg.RPC.EtherscanAPIKey)
 	svc := service.New(entries, notifier, balanceFetcher, c.log)
 	svc.Run(c.ctx)
-}
-func (c *cmd) encrypt() {
-	entries, err := os.ReadDir("data/account")
-	if err != nil {
-		c.log.Fatal(c.ctx, "Could not read data/account", logger.Err(err))
-	}
-
-	var encrypted int
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
-			continue
-		}
-		src := filepath.Join("data/account", e.Name())
-		data, err := os.ReadFile(src)
-		if err != nil {
-			c.log.Error(c.ctx, "Could not read file", logger.String("file", src), logger.Err(err))
-			continue
-		}
-		enc, err := crypto.Encrypt(data, c.key)
-		if err != nil {
-			c.log.Error(c.ctx, "Could not encrypt file", logger.String("file", src), logger.Err(err))
-			continue
-		}
-		dst := strings.TrimSuffix(src, ".json") + ".enc"
-		if err = os.WriteFile(dst, enc, 0600); err != nil {
-			c.log.Error(c.ctx, "Could not write encrypted file", logger.String("file", dst), logger.Err(err))
-			continue
-		}
-		if err = os.Remove(src); err != nil {
-			c.log.Error(c.ctx, "Could not remove plaintext file", logger.String("file", src), logger.Err(err))
-			continue
-		}
-		c.log.Info(c.ctx, "Encrypted", logger.String("file", dst))
-		encrypted++
-	}
-
-	if encrypted == 0 {
-		c.log.Warn(c.ctx, "No plaintext .json session files found to encrypt.")
-	}
 }
 func (c *cmd) buildConfigs(walletAddress string) []model.ClaimConfig {
 	all := []model.ClaimConfig{

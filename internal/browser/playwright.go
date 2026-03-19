@@ -95,7 +95,7 @@ func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg model.ClaimCo
 		if removeErr := os.Remove(p.authStateFile); removeErr != nil {
 			p.lg.Warn(ctx, "Could not delete auth file", logger.Err(removeErr))
 		}
-		p.lg.Fatal(ctx, "Session expired. Deleted auth file — run --capture again.")
+		p.lg.Fatal(ctx, "Session expired. Deleted auth file — run --google-sign-in again.")
 	}
 
 	time.Sleep(1 * time.Second)

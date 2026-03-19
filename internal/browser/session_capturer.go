@@ -87,13 +87,13 @@ func (s *PlaywrightSessionCapturer) CaptureSession(ctx context.Context) error {
 	}
 
 	index := countExistingAccountFiles()
-	filePath := fmt.Sprintf("data/account/%d_%s.enc", index, email)
+	filePath := fmt.Sprintf("data/account/%d_%s.enc", index+1, email)
 
 	if err = os.WriteFile(filePath, encrypted, 0600); err != nil {
 		return fmt.Errorf("could not write session file: %w", err)
 	}
 
-	s.lg.Info(ctx, fmt.Sprintf("Session captured successfully → %s. Run with --start to start claiming.", filePath))
+	s.lg.Info(ctx, fmt.Sprintf("Session captured successfully → %s. Run with --claim to start claiming.", filePath))
 	return nil
 }
 
