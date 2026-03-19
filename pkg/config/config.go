@@ -24,14 +24,21 @@ func Load() *Config {
 
 	rootUrl := new("https://cloud.google.com/application/web3/faucet/ethereum/sepolia")
 
+	wallets := loadWallets()
+	enabledTokens := getEnv("ENABLED_TOKENS", "")
+	if len(wallets) > 0 && enabledTokens == "" {
+		_, _ = fmt.Fprintf(os.Stderr, "FATAL: ENABLED_TOKENS is required when WALLET_ADDRESSES is set\n")
+		os.Exit(1)
+	}
+
 	return &Config{
 		LogLevel:             getEnv("LOG_LEVEL", "info"),
-		EnabledTokens:        getEnvRequired("ENABLED_TOKENS"),
+		EnabledTokens:        enabledTokens,
 		FaucetURLETH:         *rootUrl,
 		FaucetURLPYUSD:       fmt.Sprintf("%s/pyusd", *rootUrl),
 		PyUSDContractAddress: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9",
 		Telegram:             loadTelegramConfig(),
-		Wallets:              loadWallets(),
+		Wallets:              wallets,
 		RPC:                  loadRPCConfig(),
 	}
 }

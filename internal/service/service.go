@@ -34,7 +34,7 @@ type Service struct {
 	accounts  []AccountEntry
 	notifier  *telegram.Notifier
 	fetcher   *rpc.BalanceFetcher
-	lg        logger.Logger
+	log       logger.Logger
 	mu        sync.RWMutex
 	nextRunAt time.Time
 }
@@ -49,14 +49,14 @@ func New(
 		accounts: accounts,
 		notifier: notifier,
 		fetcher:  fetcher,
-		lg:       lg,
+		log:      lg,
 	}
 }
 
 func (s *Service) Run(ctx context.Context) {
 	for _, acc := range s.accounts {
 		if err := acc.Claimer.LoadSession(); err != nil {
-			s.lg.Fatal(ctx, "Could not load session — run --capture first.",
+			s.log.Fatal(ctx, "Could not load session — run --capture first.",
 				logger.String("account", acc.Name), logger.Err(err))
 		}
 	}
@@ -84,11 +84,11 @@ func (s *Service) Run(ctx context.Context) {
 			}
 			return sb.String()
 		})
-		s.lg.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
+		s.log.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
 		<-claimCh
-		s.lg.Info(ctx, "Claim cycle triggered via Telegram.")
+		s.log.Info(ctx, "Claim cycle triggered via Telegram.")
 	} else {
-		s.lg.Info(ctx, "Telegram not configured, running in console mode.")
+		s.log.Info(ctx, "Telegram not configured, running in console mode.")
 	}
 
 	if err := s.checkStartupCooldown(ctx); err != nil {
@@ -96,6 +96,10 @@ func (s *Service) Run(ctx context.Context) {
 	}
 
 	for {
+		if s.notifier != nil {
+			_ = s.notifier.Send(ctx, "🚀 Claiming now...")
+		}
+
 		var allResults []accountResult
 		for _, acc := range s.accounts {
 			results := s.execute(ctx, acc.Claimer, acc.Configs)
@@ -109,11 +113,11 @@ func (s *Service) Run(ctx context.Context) {
 		next := s.computeNext(ctx, allResults)
 		s.setNextRun(next)
 		msg := s.formatCombinedMessage(allResults, next)
-		s.lg.Info(ctx, msg)
+		s.log.Info(ctx, msg)
 		if s.notifier != nil {
 			_ = s.notifier.Send(ctx, msg)
 		}
-		s.lg.Info(ctx, "Next attempt", logger.String("at", next.Format("02.01.2006 - 15:04:05")))
+		s.log.Info(ctx, "Next attempt", logger.String("at", next.Format("02.01.2006 - 15:04:05")))
 		time.Sleep(time.Until(next))
 	}
 }
@@ -124,18 +128,18 @@ func (s *Service) execute(ctx context.Context, claimer *browser.PlaywrightFaucet
 		if s.fetcher != nil {
 			if bal, err := s.fetcher.GetBalance(ctx, cfg); err == nil {
 				balBefore = bal
-				s.lg.Info(ctx, "Balance before claim", logger.String("token", cfg.TokenName), logger.String("balance", bal))
+				s.log.Info(ctx, "Balance before claim", logger.String("token", cfg.TokenName), logger.String("balance", bal))
 			} else {
-				s.lg.Warn(ctx, "Balance fetch failed (before)", logger.String("token", cfg.TokenName), logger.Err(err))
+				s.log.Warn(ctx, "Balance fetch failed (before)", logger.String("token", cfg.TokenName), logger.Err(err))
 			}
 		}
 		result := claimer.Claim(ctx, cfg)
 		if s.fetcher != nil {
 			if bal, err := s.fetcher.GetBalance(ctx, cfg); err == nil {
 				result.BalanceAfter = bal
-				s.lg.Info(ctx, "Balance after claim", logger.String("token", cfg.TokenName), logger.String("balance", bal))
+				s.log.Info(ctx, "Balance after claim", logger.String("token", cfg.TokenName), logger.String("balance", bal))
 			} else {
-				s.lg.Warn(ctx, "Balance fetch failed (after)", logger.String("token", cfg.TokenName), logger.Err(err))
+				s.log.Warn(ctx, "Balance fetch failed (after)", logger.String("token", cfg.TokenName), logger.Err(err))
 			}
 			result.BalanceBefore = balBefore
 		}
@@ -165,7 +169,7 @@ func (s *Service) computeNext(ctx context.Context, allResults []accountResult) t
 		if t, err := s.fetcher.GetLastTxTime(ctx, s.accounts[0].Wallet); err == nil {
 			base = t
 		} else {
-			s.lg.Warn(ctx, "Could not fetch last tx time, falling back to now", logger.Err(err))
+			s.log.Warn(ctx, "Could not fetch last tx time, falling back to now", logger.Err(err))
 		}
 	}
 	next := base.Add(interval)
@@ -210,23 +214,23 @@ func (s *Service) checkStartupCooldown(ctx context.Context) error {
 	for _, acc := range s.accounts {
 		t, err := s.fetcher.GetLastTxTime(ctx, acc.Wallet)
 		if err != nil {
-			s.lg.Error(ctx, "Could not fetch last tx time",
+			s.log.Error(ctx, "Could not fetch last tx time",
 				logger.String("wallet", acc.Wallet),
 				logger.String("error", err.Error()),
 			)
 			return err
 		}
-		s.lg.Info(ctx, "Last claim",
+		s.log.Info(ctx, "Last claim",
 			logger.String("wallet", acc.Wallet),
 			logger.String("time", t.Format("02.01.2006 - 15:04:05")),
 		)
 		next := t.Add(interval)
 		if next.After(time.Now()) {
 			remaining := time.Until(next).Round(time.Second)
-			s.lg.Warn(ctx, "Cooldown active",
+			s.log.Warn(ctx, "Cooldown active",
 				logger.String("wallet", acc.Wallet),
 				logger.String("next_run", next.Format("02.01.2006 - 15:04:05")),
-				logger.String("remaining", remaining.String()),
+				logger.String("remaining", formatDuration(remaining)),
 			)
 		}
 		if next.After(latestNext) {
@@ -236,13 +240,30 @@ func (s *Service) checkStartupCooldown(ctx context.Context) error {
 
 	if latestNext.After(time.Now()) {
 		s.setNextRun(latestNext)
-		s.lg.Info(ctx, "Waiting for cooldown",
+		remaining := time.Until(latestNext).Round(time.Second)
+		s.log.Info(ctx, "Waiting for cooldown",
 			logger.String("until", latestNext.Format("02.01.2006 - 15:04:05")),
 		)
+		if s.notifier != nil {
+			msg := fmt.Sprintf(
+				"Cooldown active\n\nNext run: %s\nRemaining: %s\n\nWaiting...",
+				latestNext.Format("02.01.2006 - 15:04:05"),
+				formatDuration(remaining),
+			)
+			_ = s.notifier.Send(ctx, msg)
+		}
 		time.Sleep(time.Until(latestNext))
 	}
 	return nil
 }
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	s := int(d.Seconds()) % 60
+	return fmt.Sprintf("%dh %dm %ds", h, m, s)
+}
+
 func (s *Service) setNextRun(t time.Time) {
 	s.mu.Lock()
 	s.nextRunAt = t
