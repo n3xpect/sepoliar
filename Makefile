@@ -1,6 +1,8 @@
 -include .env
 export
 
+.DEFAULT_GOAL := build
+
 IMAGE_NAME := sepoliar
 IMAGE_TAG  := 1.0.0
 
