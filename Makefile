@@ -1,13 +1,17 @@
 -include .env
 export
 
-.DEFAULT_GOAL := build
 
 IMAGE_NAME := sepoliar
 IMAGE_TAG  := 1.0.0
 
+.PHONY: build docker-build docker-up docker-up-mac docker-down docker-logs sync
+.DEFAULT_GOAL := build
+
+
 build:
 	CGO_ENABLED=0 go build -buildvcs=false -ldflags="-w -s" -o sepoliar .
+
 
 docker-build:
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) -f deploy/Dockerfile .
@@ -28,3 +32,13 @@ docker-down:
 
 docker-logs:
 	docker compose -f deploy/docker-compose.yml logs -f
+
+sync:
+	rsync -avz --progress \
+		--exclude='.git' \
+		--exclude='.gitignore' \
+		--exclude='.idea' \
+		--exclude='.claude' \
+		--exclude='railway.toml' \
+		--exclude='sepoliar' \
+		../sepoliar/ $(SEPOLIAR_SERVER)/sepoliar
