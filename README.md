@@ -81,7 +81,7 @@ Copy `.env.example` to `.env` and fill in the required values.
 | `/claim` | Starts the claim cycle (only works if the app is waiting for it) |
 | `/balance` | Returns current wallet balances (only available after the first claim cycle completes) |
 
-> When Telegram is configured, `--claim` blocks on startup and waits for `/claim` before proceeding. If a cooldown is active, `/claim` returns a cooldown message with remaining time instead of starting the cycle. If a cycle is already running, the bot replies "Claim is already running."
+> When Telegram is configured, `--claim` blocks on startup and waits for `/claim` before proceeding. If a cooldown is active, `/claim` returns a cooldown message with remaining time instead of starting the cycle. If a claim cycle is currently in progress, the bot replies "Claim is in progress. Please wait..." All configured accounts are claimed concurrently.
 
 ### Claim Flow with Telegram
 
