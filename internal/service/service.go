@@ -98,8 +98,19 @@ func (s *Service) Run(ctx context.Context) {
 				if i > 0 {
 					sb.WriteString("\n")
 				}
-				s.log.Info(ctx, "Balance query via Telegram", logger.String("account", acc.Name))
-				sb.WriteString(s.fetchBalancesForConfigs(ctx, acc.Name, acc.Wallet, acc.Configs))
+				fields := []logger.Field{logger.String("account", acc.Name)}
+				sb.WriteString(fmt.Sprintf("%s\n%s\n", acc.Name, acc.Wallet))
+				for _, cfg := range acc.Configs {
+					bal, err := s.fetcher.GetBalance(ctx, cfg)
+					if err != nil {
+						sb.WriteString(fmt.Sprintf("  %-6s error: %v\n", cfg.TokenName+":", err))
+						fields = append(fields, logger.String(cfg.TokenName, "error"))
+					} else {
+						sb.WriteString(fmt.Sprintf("  %-6s %s\n", cfg.TokenName+":", bal))
+						fields = append(fields, logger.String(cfg.TokenName, bal))
+					}
+				}
+				s.log.Info(ctx, "Balance query via Telegram", fields...)
 			}
 			return sb.String()
 		})
@@ -133,7 +144,19 @@ func (s *Service) Run(ctx context.Context) {
 		next := s.computeNext(ctx, allResults)
 		s.setNextRun(next)
 		msg := s.formatCombinedMessage(allResults, next)
-		s.log.Info(ctx, msg)
+		for _, acc := range allResults {
+			fields := []logger.Field{logger.String("account", acc.Name)}
+			for _, r := range acc.Results {
+				if r.Err != nil {
+					fields = append(fields, logger.String(r.TokenName, fmt.Sprintf("error: %v", r.Err)))
+				} else if r.BalanceBefore != "" || r.BalanceAfter != "" {
+					fields = append(fields, logger.String(r.TokenName, r.BalanceBefore+" → "+r.BalanceAfter))
+				} else {
+					fields = append(fields, logger.String(r.TokenName, r.Message))
+				}
+			}
+			s.log.Info(ctx, "Claim result", fields...)
+		}
 		if s.notifier != nil {
 			_ = s.notifier.Send(ctx, msg)
 		}
