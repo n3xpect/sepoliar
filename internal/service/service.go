@@ -98,6 +98,7 @@ func (s *Service) Run(ctx context.Context) {
 				if i > 0 {
 					sb.WriteString("\n")
 				}
+				s.log.Info(ctx, "Balance query via Telegram", logger.String("account", acc.Name))
 				sb.WriteString(s.fetchBalancesForConfigs(ctx, acc.Name, acc.Wallet, acc.Configs))
 			}
 			return sb.String()

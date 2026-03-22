@@ -83,9 +83,7 @@ func (n *Notifier) StartPolling(ctx context.Context, onClaim func() string, getB
 			case "/claim":
 				n.sendMsg(ctx, chatIDStr, onClaim())
 			case "/balance":
-				balances := getBalances()
-				n.log.Info(ctx, "Balance query via Telegram:\n"+balances)
-				n.sendMsg(ctx, chatIDStr, balances)
+				n.sendMsg(ctx, chatIDStr, getBalances())
 			default:
 				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /claim or /balance.")
 			}
