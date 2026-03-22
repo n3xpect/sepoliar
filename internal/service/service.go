@@ -37,6 +37,7 @@ type Service struct {
 	log       logger.Logger
 	mu        sync.RWMutex
 	nextRunAt time.Time
+	claiming  bool
 }
 
 func New(
@@ -70,8 +71,12 @@ func (s *Service) Run(ctx context.Context) {
 		go s.notifier.StartPolling(ctx, func() string {
 			s.mu.RLock()
 			nextRun := s.nextRunAt
+			claiming := s.claiming
 			s.mu.RUnlock()
 
+			if claiming {
+				return "Claim is in progress. Please wait..."
+			}
 			if !nextRun.IsZero() && nextRun.After(time.Now()) {
 				remaining := time.Until(nextRun).Round(time.Second)
 				return fmt.Sprintf(
@@ -131,15 +136,30 @@ func (s *Service) Run(ctx context.Context) {
 			_ = s.notifier.Send(ctx, "🚀 Claiming now...")
 		}
 
-		var allResults []accountResult
+		s.mu.Lock()
+		s.claiming = true
+		s.mu.Unlock()
+
+		resultCh := make(chan accountResult, len(s.accounts))
 		for _, acc := range s.accounts {
-			results := s.execute(ctx, acc.Claimer, acc.Configs)
-			allResults = append(allResults, accountResult{
-				Name:    acc.Name,
-				Wallet:  acc.Wallet,
-				Results: results,
-			})
+			acc := acc
+			go func() {
+				results := s.execute(ctx, acc.Claimer, acc.Configs)
+				resultCh <- accountResult{
+					Name:    acc.Name,
+					Wallet:  acc.Wallet,
+					Results: results,
+				}
+			}()
 		}
+		allResults := make([]accountResult, 0, len(s.accounts))
+		for range s.accounts {
+			allResults = append(allResults, <-resultCh)
+		}
+
+		s.mu.Lock()
+		s.claiming = false
+		s.mu.Unlock()
 
 		next := s.computeNext(ctx, allResults)
 		s.setNextRun(next)
