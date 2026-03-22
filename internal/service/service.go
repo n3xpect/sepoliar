@@ -103,7 +103,7 @@ func (s *Service) Run(ctx context.Context) {
 			return sb.String()
 		})
 		_ = s.notifier.Send(ctx, "Bot is online. Send /claim to start the claiming process.")
-	s.log.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
+		s.log.Info(ctx, "Telegram notifications enabled. Waiting for /claim command.")
 		<-claimCh
 		s.log.Info(ctx, "Claim cycle triggered via Telegram.")
 	} else {
@@ -214,7 +214,7 @@ func (s *Service) formatCombinedMessage(accounts []accountResult, next time.Time
 			if r.Err != nil {
 				sb.WriteString(fmt.Sprintf("  %s: ❌ %v\n", r.TokenName, r.Err))
 			} else if r.BalanceBefore != "" || r.BalanceAfter != "" {
-				sb.WriteString(fmt.Sprintf("  %s: %s -> %s\n", r.TokenName, r.BalanceBefore, r.BalanceAfter))
+				sb.WriteString(fmt.Sprintf("  %s: %s → %s\n", r.TokenName, r.BalanceBefore, r.BalanceAfter))
 			} else {
 				sb.WriteString(fmt.Sprintf("  %s: %s\n", r.TokenName, r.Message))
 			}
