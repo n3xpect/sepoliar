@@ -135,26 +135,31 @@ func (s *Service) Run(ctx context.Context) {
 		if s.notifier != nil {
 			_ = s.notifier.Send(ctx, "🚀 Claiming now...")
 		}
+		s.log.Info(ctx, "Claim started")
 
 		s.mu.Lock()
 		s.claiming = true
 		s.mu.Unlock()
 
-		resultCh := make(chan accountResult, len(s.accounts))
-		for _, acc := range s.accounts {
-			acc := acc
+		type indexedResult struct {
+			index  int
+			result accountResult
+		}
+		resultCh := make(chan indexedResult, len(s.accounts))
+		for i, acc := range s.accounts {
+			i, acc := i, acc
 			go func() {
 				results := s.execute(ctx, acc.Claimer, acc.Configs)
-				resultCh <- accountResult{
-					Name:    acc.Name,
-					Wallet:  acc.Wallet,
-					Results: results,
+				resultCh <- indexedResult{
+					index:  i,
+					result: accountResult{Name: acc.Name, Wallet: acc.Wallet, Results: results},
 				}
 			}()
 		}
-		allResults := make([]accountResult, 0, len(s.accounts))
+		allResults := make([]accountResult, len(s.accounts))
 		for range s.accounts {
-			allResults = append(allResults, <-resultCh)
+			r := <-resultCh
+			allResults[r.index] = r.result
 		}
 
 		s.mu.Lock()
