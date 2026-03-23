@@ -61,10 +61,11 @@ func (s *Service) Run(ctx context.Context) {
 				logger.String("account", acc.Name), logger.Err(err))
 		}
 	}
-	for _, acc := range s.accounts {
-		acc := acc
-		defer func() { _ = acc.Claimer.Close() }()
-	}
+	defer func() {
+		for _, acc := range s.accounts {
+			_ = acc.Claimer.Close()
+		}
+	}()
 
 	if s.notifier != nil {
 		claimCh := make(chan struct{}, 1)
