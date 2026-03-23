@@ -233,11 +233,20 @@ func (s *Service) fetchBalancesForConfigs(ctx context.Context, name, wallet stri
 }
 func (s *Service) computeNext(ctx context.Context, allResults []accountResult) time.Time {
 	base := time.Now()
-	if s.fetcher != nil && len(s.accounts) > 0 {
-		if t, err := s.fetcher.GetLastTxTime(ctx, s.accounts[0].Wallet); err == nil {
-			base = t
-		} else {
-			s.log.Warn(ctx, "Could not fetch last tx time, falling back to now", logger.Err(err))
+	if s.fetcher != nil {
+		var maxTxTime time.Time
+		for _, acc := range s.accounts {
+			t, err := s.fetcher.GetLastTxTime(ctx, acc.Wallet)
+			if err != nil {
+				s.log.Warn(ctx, "Could not fetch last tx time", logger.String("wallet", acc.Wallet), logger.Err(err))
+				continue
+			}
+			if t.After(maxTxTime) {
+				maxTxTime = t
+			}
+		}
+		if !maxTxTime.IsZero() {
+			base = maxTxTime
 		}
 	}
 	next := base.Add(interval)
