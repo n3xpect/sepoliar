@@ -80,6 +80,7 @@ Yapılandırılmış cüzdanların mevcut bakiyelerini yazdırıp çıkar. Şifr
 |---|---|
 | `/claim` | Claim döngüsünü başlatır (yalnızca uygulama bekleme modundayken çalışır) |
 | `/balance` | Mevcut cüzdan bakiyelerini döndürür (yalnızca ilk claim döngüsü tamamlandıktan sonra kullanılabilir) |
+| `/info` | Hesap adlarını ve ilişkili cüzdan adreslerini döndürür |
 
 > Telegram yapılandırıldığında `--claim` başlangıçta bloklar ve devam etmeden önce `/claim` komutunu bekler. Cooldown aktifse `/claim`, kalan süreyle birlikte cooldown mesajı döndürür; döngü başlamaz. Claim döngüsü devam ediyorsa bot "Claim is in progress. Please wait..." yanıtı verir. Tüm hesaplar eş zamanlı olarak claim edilir.
 

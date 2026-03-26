@@ -105,7 +105,7 @@ func (s *Service) Run(ctx context.Context) {
 					sb.WriteString("\n")
 				}
 				fields := []logger.Field{logger.String("account", acc.Name)}
-				sb.WriteString(fmt.Sprintf("%s\n%s\n", acc.Name, acc.Wallet))
+				sb.WriteString(fmt.Sprintf("%s\n", acc.Name))
 				for _, cfg := range acc.Configs {
 					bal, err := s.fetcher.GetBalance(ctx, cfg)
 					if err != nil {
@@ -117,6 +117,15 @@ func (s *Service) Run(ctx context.Context) {
 					}
 				}
 				s.log.Info(ctx, "Balance query via Telegram", fields...)
+			}
+			return sb.String()
+		}, func() string {
+			var sb strings.Builder
+			for i, acc := range s.accounts {
+				if i > 0 {
+					sb.WriteString("\n")
+				}
+				sb.WriteString(fmt.Sprintf("%s\n%s\n", acc.Name, acc.Wallet))
 			}
 			return sb.String()
 		})

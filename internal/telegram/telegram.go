@@ -36,7 +36,7 @@ func (n *Notifier) Send(ctx context.Context, msg string) error {
 	_ = resp.Body.Close()
 	return nil
 }
-func (n *Notifier) StartPolling(ctx context.Context, onClaim func() string, getBalances func() string) {
+func (n *Notifier) StartPolling(ctx context.Context, onClaim func() string, getBalances func() string, getInfo func() string) {
 	type tgChat struct {
 		ID int64 `json:"id"`
 	}
@@ -84,8 +84,10 @@ func (n *Notifier) StartPolling(ctx context.Context, onClaim func() string, getB
 				n.sendMsg(ctx, chatIDStr, onClaim())
 			case "/balance":
 				n.sendMsg(ctx, chatIDStr, getBalances())
+			case "/info":
+				n.sendMsg(ctx, chatIDStr, getInfo())
 			default:
-				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /claim or /balance.")
+				n.sendMsg(ctx, chatIDStr, "Unknown command. Use /claim, /balance or /info.")
 			}
 		}
 	}
