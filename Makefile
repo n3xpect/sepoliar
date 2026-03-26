@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 -include .env
 export
 
@@ -17,14 +18,18 @@ docker-build:
 	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) -f deploy/Dockerfile .
 
 docker-up:
-	chown -R 1000:1000 data
-	chmod 755 data/account
-	chmod 644 data/account/*.enc 2>/dev/null || true
-	docker compose -f deploy/docker-compose.yml up -d
+	@read -s -p "Encryption key: " key && echo && \
+	export SEPOLIAR_ENCRYPTION_KEY=$$key && \
+	chown -R 1000:1000 data && \
+	chmod 755 data/account && \
+	(chmod 644 data/account/*.enc 2>/dev/null || true) && \
+	docker compose -f deploy/docker-compose.yml up -d && \
 	docker compose -f deploy/docker-compose.yml logs -f
 
 docker-up-mac:
-	docker compose -f deploy/docker-compose.mac.yml up -d
+	@read -s -p "Encryption key: " key && echo && \
+	export SEPOLIAR_ENCRYPTION_KEY=$$key && \
+	docker compose -f deploy/docker-compose.mac.yml up -d && \
 	docker compose -f deploy/docker-compose.mac.yml logs -f
 
 docker-down:

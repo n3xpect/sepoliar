@@ -70,7 +70,7 @@ Prints current balances for the configured wallets and exits. Does not require a
 | `TELEGRAM_CHAT_ID` | — | Telegram chat/user ID |
 | `WALLET_ADDRESSES` | ✅ | Comma-separated wallet addresses for claiming |
 | `ETHERSCAN_API_KEY` | ✅ | Etherscan API key for last-tx lookup (cooldown calculation) |
-| `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Encryption key for session files; used by `--google-sign-in`, `--claim` (required in Docker — no interactive prompt; optional in CLI) |
+| `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Encryption key for session files; used by `--google-sign-in`, `--claim` (prompted interactively on `make docker-up`; optional in CLI) |
 
 Copy `.env.example` to `.env` and fill in the required values.
 

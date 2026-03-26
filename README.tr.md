@@ -70,7 +70,7 @@ Yapılandırılmış cüzdanların mevcut bakiyelerini yazdırıp çıkar. Şifr
 | `TELEGRAM_CHAT_ID` | — | Telegram sohbet/kullanıcı ID'si |
 | `WALLET_ADDRESSES` | ✅ | Claim için cüzdan adresleri (virgülle ayrılmış) |
 | `ETHERSCAN_API_KEY` | ✅ | Son işlem zamanı sorgusu için Etherscan API anahtarı (cooldown hesabı) |
-| `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Oturum dosyaları şifreleme anahtarı; `--google-sign-in`, `--claim` için geçerlidir (Docker'da zorunlu — etkileşimli istem yok; CLI'da isteğe bağlı) |
+| `SEPOLIAR_ENCRYPTION_KEY` | Docker: ✅ | Oturum dosyaları şifreleme anahtarı; `--google-sign-in`, `--claim` için geçerlidir (`make docker-up` sırasında interaktif olarak sorulur; CLI'da isteğe bağlı) |
 
 `.env.example` dosyasını `.env` olarak kopyalayıp gerekli değerleri doldurun.
 
