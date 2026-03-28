@@ -5,7 +5,6 @@ import "time"
 type ClaimConfig struct {
 	FaucetURL     string
 	WalletAddress string
-	ButtonText    string
 	TokenName     string
 	TokenAddress  string
 	TokenDecimals int

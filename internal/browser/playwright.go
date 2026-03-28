@@ -144,7 +144,7 @@ func (p *PlaywrightFaucetClaimer) doClaim(ctx context.Context, cfg model.ClaimCo
 
 	p.lg.Info(ctx, "Clicking claim button", logger.String("token", cfg.TokenName))
 	claimButton, err := page.WaitForSelector(
-		fmt.Sprintf("button:has-text('%s')", cfg.ButtonText),
+		"form button",
 		playwright.PageWaitForSelectorOptions{Timeout: playwright.Float(15000)},
 	)
 	if err != nil {

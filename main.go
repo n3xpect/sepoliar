@@ -209,14 +209,12 @@ func (c *cmd) buildConfigs(walletAddress string) []model.ClaimConfig {
 		{
 			FaucetURL:     c.cfg.FaucetURLETH,
 			WalletAddress: walletAddress,
-			ButtonText:    "Get 0.05 Sepolia ETH",
 			TokenName:     "ETH",
 			TokenDecimals: 18,
 		},
 		{
 			FaucetURL:     c.cfg.FaucetURLPYUSD,
 			WalletAddress: walletAddress,
-			ButtonText:    "Get 100 Sepolia PYUSD",
 			TokenName:     "PYUSD",
 			TokenAddress:  c.cfg.PyUSDContractAddress,
 			TokenDecimals: 6,
