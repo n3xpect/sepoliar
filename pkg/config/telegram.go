@@ -5,9 +5,9 @@ type TelegramConfig struct {
 	ChatID   string
 }
 
-func loadTelegramConfig() TelegramConfig {
+func loadTelegramConfig(botToken, chatID string) TelegramConfig {
 	return TelegramConfig{
-		BotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
-		ChatID:   getEnv("TELEGRAM_CHAT_ID", ""),
+		BotToken: botToken,
+		ChatID:   chatID,
 	}
 }

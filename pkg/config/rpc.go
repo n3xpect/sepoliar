@@ -7,9 +7,9 @@ type RPCConfig struct {
 	EtherscanAPIKey string
 }
 
-func loadRPCConfig() RPCConfig {
+func loadRPCConfig(etherscanAPIKey string) RPCConfig {
 	return RPCConfig{
 		SepoliaRPCURL:   sepoliaRPCURL,
-		EtherscanAPIKey: getEnvRequired("ETHERSCAN_API_KEY"),
+		EtherscanAPIKey: etherscanAPIKey,
 	}
 }

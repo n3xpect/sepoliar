@@ -13,6 +13,8 @@ type Config struct {
 	FaucetURLETH         string
 	FaucetURLPYUSD       string
 	PyUSDContractAddress string
+	EncryptionKey        string
+	WalletAddresses      string
 	Telegram             TelegramConfig
 	Wallets              []WalletEntry
 	RPC                  RPCConfig
@@ -23,16 +25,18 @@ func Load() *Config {
 
 	rootUrl := new("https://cloud.google.com/application/web3/faucet/ethereum/sepolia")
 
-	wallets := loadWallets()
+	walletAddresses := getEnvRequired("WALLET_ADDRESSES")
 
 	return &Config{
 		LogLevel:             getEnv("LOG_LEVEL", "info"),
 		FaucetURLETH:         *rootUrl,
 		FaucetURLPYUSD:       fmt.Sprintf("%s/pyusd", *rootUrl),
 		PyUSDContractAddress: "0xCaC524BcA292aaade2DF8A05cC58F0a65B1B3bB9",
-		Telegram:             loadTelegramConfig(),
-		Wallets:              wallets,
-		RPC:                  loadRPCConfig(),
+		EncryptionKey:        getEnv("SEPOLIAR_ENCRYPTION_KEY", ""),
+		WalletAddresses:      walletAddresses,
+		Telegram:             loadTelegramConfig(getEnv("TELEGRAM_BOT_TOKEN", ""), getEnv("TELEGRAM_CHAT_ID", "")),
+		Wallets:              loadWallets(walletAddresses),
+		RPC:                  loadRPCConfig(getEnvRequired("ETHERSCAN_API_KEY")),
 	}
 }
 

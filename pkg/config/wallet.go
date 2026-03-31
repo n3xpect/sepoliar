@@ -11,9 +11,8 @@ type WalletEntry struct {
 	Address string
 }
 
-func LoadWallets(accountFiles []string) []WalletEntry {
-	raw := getEnvRequired("WALLET_ADDRESSES")
-	parts := strings.Split(raw, ",")
+func LoadWallets(accountFiles []string, walletAddresses string) []WalletEntry {
+	parts := strings.Split(walletAddresses, ",")
 	if len(parts) != len(accountFiles) {
 		panic(fmt.Sprintf(
 			"account count (%d) does not match wallet count (%d)",
@@ -34,9 +33,8 @@ func LoadWallets(accountFiles []string) []WalletEntry {
 	return entries
 }
 
-func loadWallets() []WalletEntry {
-	raw := getEnvRequired("WALLET_ADDRESSES")
-	parts := strings.Split(raw, ",")
+func loadWallets(walletAddresses string) []WalletEntry {
+	parts := strings.Split(walletAddresses, ",")
 	entries := make([]WalletEntry, len(parts))
 	for i, p := range parts {
 		entries[i] = WalletEntry{Address: strings.TrimSpace(p)}

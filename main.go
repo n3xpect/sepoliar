@@ -58,7 +58,7 @@ func main() {
 	case *balance:
 		c.balance()
 	case *googleSignIn:
-		c.key = promptKey()
+		c.key = promptKey(cfg.EncryptionKey)
 		c.googleSignIn()
 	case *claim:
 		c.claim()
@@ -68,9 +68,9 @@ func main() {
 	}
 }
 
-func promptKey() [32]byte {
-	if val := os.Getenv("SEPOLIAR_ENCRYPTION_KEY"); val != "" {
-		return crypto.DeriveKey(val)
+func promptKey(envKey string) [32]byte {
+	if envKey != "" {
+		return crypto.DeriveKey(envKey)
 	}
 	fi, err := os.Stdin.Stat()
 	if err != nil || (fi.Mode()&os.ModeCharDevice) == 0 {
@@ -174,7 +174,7 @@ func (c *cmd) claim() {
 	if len(accountFiles) == 0 {
 		c.log.Fatal(c.ctx, "No account files found in data/account/. Run --google-sign-in first.")
 	}
-	c.key = promptKey()
+	c.key = promptKey(c.cfg.EncryptionKey)
 	c.validateSessions(accountFiles)
 
 	pw, err := playwright.Run()
@@ -183,7 +183,7 @@ func (c *cmd) claim() {
 	}
 	defer func() { _ = pw.Stop() }()
 
-	wallets := config.LoadWallets(accountFiles)
+	wallets := config.LoadWallets(accountFiles, c.cfg.WalletAddresses)
 
 	if (c.cfg.Telegram.BotToken == "") != (c.cfg.Telegram.ChatID == "") {
 		c.log.Warn(c.ctx, "Only one of TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID is set — Telegram disabled.")
