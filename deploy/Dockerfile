@@ -11,14 +11,12 @@ COPY . .
 
 RUN apt-get update && \
     apt-get install -y upx-ucl --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN CGO_ENABLED=0 GOOS=linux go build \
+    rm -rf /var/lib/apt/lists/* && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -buildvcs=false \
     -v -x \
-    -ldflags "-s -w" \
-    -a -installsuffix cgo \
+    -ldflags "-w -s" \
     -o sepoliar . && \
     upx --best --lzma sepoliar || true
 

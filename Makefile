@@ -11,7 +11,7 @@ IMAGE_TAG  := 1.0.0
 
 
 build:
-	CGO_ENABLED=0 go build -buildvcs=false -ldflags="-w -s" -o sepoliar .
+	CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags="-w -s" -o sepoliar .
 
 
 docker-build:
